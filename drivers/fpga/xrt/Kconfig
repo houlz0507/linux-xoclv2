@@ -5,3 +5,4 @@
 
 source "drivers/fpga/xrt/lib/Kconfig"
 source "drivers/fpga/xrt/mgmt/Kconfig"
+source "drivers/fpga/xrt/selftests/Kconfig"

@@ -50,3 +50,4 @@ obj-$(CONFIG_FPGA_DFL_PCI)		+= dfl-pci.o
 # XRT drivers for Alveo
 obj-$(CONFIG_FPGA_XRT_LIB)		+= xrt/lib/
 obj-$(CONFIG_FPGA_XRT_XMGMT)		+= xrt/mgmt/
+obj-$(CONFIG_FPGA_XRT_SELFTESTS)	+= xrt/selftests/
