@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 #
 # Xilinx XRT FPGA device configuration
-# 
+#
 
 config FPGA_XRT_XMGMT
 	tristate "Xilinx Alveo Management Driver"

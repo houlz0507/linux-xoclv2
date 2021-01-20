@@ -13,7 +13,7 @@ obj-$(CONFIG_FPGA_XRT_SELFTESTS)	+= xrt-stest1.o
 
 xrt-stest1-objs := selftest1.o		\
 	   selftest1-main.o		\
-	   xleaf/test.o	
+	   xleaf/test.o
 
 ccflags-y := -I$(FULL_XRT_PATH)/include		\
 	-I$(FULL_DTC_PATH)

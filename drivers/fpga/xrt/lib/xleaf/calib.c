@@ -56,7 +56,7 @@ static void calib_cache_clean(struct calib *calib)
 
 static int calib_srsr(struct calib *calib, struct platform_device *srsr_leaf)
 {
-	return -ENOTSUPP;
+	return -EOPNOTSUPP;
 }
 
 static int calib_calibration(struct calib *calib)

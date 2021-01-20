@@ -93,7 +93,10 @@ static void ucs_check(struct xrt_ucs *ucs, bool *latched)
 	status = reg_rd(ucs, CHANNEL1_OFFSET);
 	ucs_status_ch1 = (struct ucs_control_status_ch1 *)&status;
 	if (ucs_status_ch1->shutdown_clocks_latched) {
-		UCS_ERR(ucs, "Critical temperature or power event, kernel clocks have been stopped, run 'xbutil valiate -q' to continue. See AR 73398 for more details.");
+		UCS_ERR(ucs,
+		    "Critical temperature or power event, kernel clocks have been stopped.");
+		UCS_ERR(ucs,
+		    "run 'xbutil valiate -q' to continue. See AR 73398 for more details.");
 		/* explicitly indicate reset should be latched */
 		*latched = true;
 	} else if (ucs_status_ch1->clock_throttling_average >

@@ -250,7 +250,7 @@ static const struct attribute_group xmgmt_main_attrgroup = {
 static int load_firmware_from_flash(struct platform_device *pdev,
 	struct axlf **fw_buf, size_t *len)
 {
-	return -ENOTSUPP;
+	return -EOPNOTSUPP;
 }
 
 static int load_firmware_from_disk(struct platform_device *pdev, struct axlf **fw_buf,
