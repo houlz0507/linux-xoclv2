@@ -5,7 +5,6 @@
  *  Copyright (C) 2015-2020, Xilinx Inc
  */
 
-
 #ifndef _XCLBIN_H_
 #define _XCLBIN_H_
 
@@ -236,7 +235,6 @@ struct connectivity {
 	int32_t m_count;
 	struct connection m_connection[1];
 };
-
 
 /****	IP_LAYOUT SECTION ****/
 

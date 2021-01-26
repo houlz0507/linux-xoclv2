@@ -9,7 +9,6 @@
 #ifndef	_XRT_AXIGATE_H_
 #define	_XRT_AXIGATE_H_
 
-
 #include "xleaf.h"
 #include "metadata.h"
 

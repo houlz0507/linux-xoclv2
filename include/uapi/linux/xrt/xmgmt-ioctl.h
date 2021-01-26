@@ -28,7 +28,6 @@
 #define XMGMT_IOC_FREQ_SCALE 0x2
 #define XMGMT_IOC_ICAP_DOWNLOAD_AXLF 0x6
 
-
 /**
  * struct xmgmt_ioc_bitstream_axlf - load xclbin (AXLF) device image
  * used with XMGMT_IOCICAPDOWNLOAD_AXLF ioctl

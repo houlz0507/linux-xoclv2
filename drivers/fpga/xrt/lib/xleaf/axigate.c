@@ -28,7 +28,7 @@ struct axigate_regs {
 struct xrt_axigate {
 	struct platform_device	*pdev;
 	void			*base;
-	struct mutex		gate_lock;
+	struct mutex		gate_lock; /* gate dev lock */
 
 	void			*evt_hdl;
 	const char		*ep_name;
@@ -44,26 +44,28 @@ static const char * const xrt_axigate_epnames[] = {
 };
 
 #define reg_rd(g, r)						\
-	ioread32(&((struct axigate_regs *)g->base)->r)
+	ioread32(&((struct axigate_regs *)(g)->base)->(r))
 #define reg_wr(g, v, r)						\
-	iowrite32(v, &((struct axigate_regs *)g->base)->r)
+	iowrite32(v, &((struct axigate_regs *)(g)->base)->(r))
 
-#define freeze_gate(gate)			\
-	do {					\
+#define freeze_gate(_gate)			\
+	({					\
+		typeof(_gate) gate = (_gate);	\
 		reg_wr(gate, 0, iag_wr);	\
 		ndelay(500);			\
 		reg_rd(gate, iag_rd);		\
-	} while (0)
+	 })
 
-#define free_gate(gate)				\
-	do {					\
+#define free_gate(_gate)				\
+	({					\
+		typeof(_gate) gate = (_gate);	\
 		reg_wr(gate, 0x2, iag_wr);	\
 		ndelay(500);			\
-		(void) reg_rd(gate, iag_rd);	\
+		(void)reg_rd(gate, iag_rd);	\
 		reg_wr(gate, 0x3, iag_wr);	\
 		ndelay(500);			\
 		reg_rd(gate, iag_rd);		\
-	} while (0)				\
+	})
 
 static int xrt_axigate_epname_idx(struct platform_device *pdev)
 {
@@ -79,7 +81,7 @@ static int xrt_axigate_epname_idx(struct platform_device *pdev)
 
 	for (i = 0; xrt_axigate_epnames[i]; i++) {
 		ret = strncmp(xrt_axigate_epnames[i], res->name,
-			strlen(xrt_axigate_epnames[i]) + 1);
+			      strlen(xrt_axigate_epnames[i]) + 1);
 		if (!ret)
 			break;
 	}
@@ -156,7 +158,7 @@ static void xrt_axigate_event_cb(struct platform_device *pdev, void *arg)
 
 	res = platform_get_resource(leaf, IORESOURCE_MEM, 0);
 	if (!res || !strncmp(res->name, gate->ep_name, strlen(res->name) + 1)) {
-		(void) xleaf_put_leaf(pdev, leaf);
+		(void)xleaf_put_leaf(pdev, leaf);
 		return;
 	}
 
@@ -170,7 +172,7 @@ static void xrt_axigate_event_cb(struct platform_device *pdev, void *arg)
 	else
 		xleaf_ioctl(leaf, XRT_AXIGATE_FREE, NULL);
 
-	(void) xleaf_put_leaf(pdev, leaf);
+	(void)xleaf_put_leaf(pdev, leaf);
 }
 
 static int

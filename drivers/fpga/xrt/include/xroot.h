@@ -104,7 +104,7 @@ struct xroot_pf_cb {
 };
 
 int xroot_probe(struct pci_dev *pdev, struct xroot_pf_cb *cb,
-	struct xroot **root);
+		struct xroot **root);
 void xroot_remove(struct xroot *root);
 bool xroot_wait_for_bringup(struct xroot *root);
 int xroot_add_vsec_node(struct xroot *root, char *dtb);
