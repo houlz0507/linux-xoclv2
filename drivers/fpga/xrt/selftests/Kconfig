@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Xilinx XRT FPGA device configuration
+#
+
+config FPGA_XRT_SELFTESTS
+	tristate "Xilinx Alveo Selftest Driver"
+	depends on FPGA_XRT_LIB
+	select LIBFDT
+	help
+	  XRT Alveo FPGA selftest driver.
