@@ -28,10 +28,10 @@
 #define	DEV_DRVDATA(pdev)				\
 	((struct xrt_subdev_drvdata *)			\
 	platform_get_device_id(pdev)->driver_data)
-#define	FMT_PRT(prt_fn, _pdev, fmt, args...)		\
-	({typeof(_pdev) (pdev) = (_pdev);		\
-	prt_fn(DEV(pdev), "%s %s: " fmt,		\
-	DEV_PDATA(pdev)->xsp_root_name, __func__, ##args); })
+#define	FMT_PRT(prt_fn, pdev, fmt, args...)		\
+	({typeof(pdev) (_pdev) = (pdev);		\
+	prt_fn(DEV(_pdev), "%s %s: " fmt,		\
+	DEV_PDATA(_pdev)->xsp_root_name, __func__, ##args); })
 #define xrt_err(pdev, fmt, args...) FMT_PRT(dev_err, pdev, fmt, ##args)
 #define xrt_warn(pdev, fmt, args...) FMT_PRT(dev_warn, pdev, fmt, ##args)
 #define xrt_info(pdev, fmt, args...) FMT_PRT(dev_info, pdev, fmt, ##args)
@@ -232,7 +232,7 @@ void xleaf_unregister_hwmon(struct platform_device *pdev, struct device *hwmon);
  */
 static inline bool xleaf_devnode_enabled(struct xrt_subdev_drvdata *drvdata)
 {
-	return drvdata && !drvdata->xsd_file_ops.xsf_ops.open;
+	return drvdata && drvdata->xsd_file_ops.xsf_ops.open;
 }
 
 int xleaf_devnode_create(struct platform_device *pdev,

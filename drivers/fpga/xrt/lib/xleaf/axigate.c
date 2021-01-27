@@ -48,24 +48,22 @@ static const char * const xrt_axigate_epnames[] = {
 #define reg_wr(g, v, r)						\
 	iowrite32(v, (void *)(g)->base + offsetof(struct axigate_regs, r))
 
-#define freeze_gate(_gate)			\
-	({					\
-		typeof(_gate) gate = (_gate);	\
-		reg_wr(gate, 0, iag_wr);	\
-		ndelay(500);			\
-		reg_rd(gate, iag_rd);		\
-	 })
+static inline void freeze_gate(struct xrt_axigate *gate)
+{
+	reg_wr(gate, 0, iag_wr);
+	ndelay(500);
+	reg_rd(gate, iag_rd);
+}
 
-#define free_gate(_gate)				\
-	({					\
-		typeof(_gate) gate = (_gate);	\
-		reg_wr(gate, 0x2, iag_wr);	\
-		ndelay(500);			\
-		(void)reg_rd(gate, iag_rd);	\
-		reg_wr(gate, 0x3, iag_wr);	\
-		ndelay(500);			\
-		reg_rd(gate, iag_rd);		\
-	})
+static inline void free_gate(struct xrt_axigate *gate)
+{
+	reg_wr(gate, 0x2, iag_wr);
+	ndelay(500);
+	(void)reg_rd(gate, iag_rd);
+	reg_wr(gate, 0x3, iag_wr);
+	ndelay(500);
+	reg_rd(gate, iag_rd);
+}
 
 static int xrt_axigate_epname_idx(struct platform_device *pdev)
 {

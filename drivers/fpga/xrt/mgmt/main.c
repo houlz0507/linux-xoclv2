@@ -276,7 +276,7 @@ static int load_firmware_from_disk(struct platform_device *pdev, struct axlf **f
 
 	*fw_buf = vmalloc(fw->size);
 	*len = fw->size;
-	if (!(*fw_buf))
+	if (*fw_buf)
 		memcpy(*fw_buf, fw->data, fw->size);
 	else
 		err = -ENOMEM;
@@ -476,7 +476,7 @@ static void xmgmt_main_event_cb(struct platform_device *pdev, void *arg)
 			break;
 		}
 
-		if (xmm->gpio_ready && xmm->flash_ready)
+		if (xmm->gpio_ready)
 			(void)xmgmt_load_firmware(xmm);
 		break;
 	}
