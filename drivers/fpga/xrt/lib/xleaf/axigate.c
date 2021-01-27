@@ -44,9 +44,9 @@ static const char * const xrt_axigate_epnames[] = {
 };
 
 #define reg_rd(g, r)						\
-	ioread32(&((struct axigate_regs *)(g)->base)->(r))
+	ioread32((void *)(g)->base + offsetof(struct axigate_regs, r))
 #define reg_wr(g, v, r)						\
-	iowrite32(v, &((struct axigate_regs *)(g)->base)->(r))
+	iowrite32(v, (void *)(g)->base + offsetof(struct axigate_regs, r))
 
 #define freeze_gate(_gate)			\
 	({					\
@@ -268,7 +268,7 @@ struct xrt_subdev_endpoints xrt_axigate_endpoints[] = {
 	{ 0 },
 };
 
-struct xrt_subdev_drvdata xrt_axigate_data = {
+static struct xrt_subdev_drvdata xrt_axigate_data = {
 	.xsd_dev_ops = {
 		.xsd_ioctl = xrt_axigate_leaf_ioctl,
 	},

@@ -104,9 +104,9 @@ xsabin
 ------
 
 Each Alveo platform comes packaged with its own xsabin. The xsabin is trusted
-component of the platform. For format details refer to :ref:`xsabin/xclbin Container Format`.
-xsabin contains basic information like UUIDs, platform name and metadata in the
-form of device tree. See :ref:`Device Tree Usage` for details and example.
+component of the platform. For format details refer to :ref:`xsabin_xclbin_container_format`
+below. xsabin contains basic information like UUIDs, platform name and metadata in the
+form of device tree. See :ref:`device_tree_usage` below for details and example.
 
 xclbin
 ------
@@ -118,6 +118,8 @@ acceleration engines/kernels, memory subsystems, clocking information etc. It al
 contains bitstream for the user partition, UUIDs, platform name, etc. xclbin uses
 the same container format as xsabin which is described below.
 
+
+.. _xsabin_xclbin_container_format:
 
 xsabin/xclbin Container Format
 ------------------------------
@@ -168,6 +170,8 @@ as shown below::
   xclbinutil --info --input /lib/firmware/xilinx/862c7020a250293e32036f19956669e5/partition.xsabin
 
 
+.. _device_tree_usage:
+
 Device Tree Usage
 -----------------
 
@@ -176,7 +180,7 @@ in a partition. The metadata is stored in device tree format with well defined s
 information to bind *platform drivers* to the subsystem instantiations. The platform
 drivers are found in **xrt-lib.ko** kernel module defined later.
 
-Logic uuid
+Logic UUID
 ^^^^^^^^^^
 A partition is identified uniquely through ``logic_uuid`` property.
 ::
@@ -187,7 +191,7 @@ A partition is identified uniquely through ``logic_uuid`` property.
       ...
     }
 
-Schema version
+Schema Version
 ^^^^^^^^^^^^^^
 Schema version is defined through ``schema_version`` node. And it contains ``major`` and ``minor`` properties as below.
 ::
@@ -578,7 +582,7 @@ on all platforms.
 The driver object model looks like the following::
 
                     +-----------+
-                    |   root    |
+                    |   xroot   |
                     +-----+-----+
                           |
               +-----------+-----------+
@@ -592,9 +596,9 @@ The driver object model looks like the following::
         +-----+----+            +-----+----+
         |          |            |          |
         v          v            v          v
-    +------+   +------+     +------+   +------+
-    | leaf |...| leaf |     | leaf |...| leaf |
-    +------+   +------+     +------+   +------+
+    +-------+  +-------+    +-------+  +-------+
+    | xleaf |..| xleaf |    | xleaf |..| xleaf |
+    +-------+  +-------+    +-------+  +-------+
 
 One example on Alveo U50 before xclbin download looks like the following::
 
@@ -685,7 +689,7 @@ before it returns from it's probe routine and claim success of the initializatio
 of the entire xmgmt driver.
 
 .. note::
-   See code in ``lib/root.c`` and ``mgmt/root.c``
+   See code in ``lib/xroot.c`` and ``mgmt/root.c``
 
 
 group
@@ -714,8 +718,8 @@ across xclbin downloads.
    See code in ``lib/group.c``
 
 
-leaves
-^^^^^^
+xleaf
+^^^^^
 
 The leaf driver is a platform device driver whose life cycle is managed by
 a group driver and may or may not have real IO mem or IRQ resources. They
@@ -735,7 +739,7 @@ to process. It can also receive event notification from infrastructure about
 certain events, such as post-creation or pre-exit of a particular leaf.
 
 .. note::
-   See code in ``lib/subdevs/*.c``
+   See code in ``lib/xleaf/*.c``
 
 
 FPGA Manager Interaction

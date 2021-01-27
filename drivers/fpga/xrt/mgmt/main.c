@@ -677,7 +677,7 @@ static long xmgmt_main_ioctl(struct file *filp, unsigned int cmd,
 	return result;
 }
 
-struct xrt_subdev_endpoints xrt_mgmt_main_endpoints[] = {
+static struct xrt_subdev_endpoints xrt_mgmt_main_endpoints[] = {
 	{
 		.xse_names = (struct xrt_subdev_ep_names []){
 			{ .ep_name = NODE_MGMT_MAIN },
@@ -688,7 +688,7 @@ struct xrt_subdev_endpoints xrt_mgmt_main_endpoints[] = {
 	{ 0 },
 };
 
-struct xrt_subdev_drvdata xmgmt_main_data = {
+static struct xrt_subdev_drvdata xmgmt_main_data = {
 	.xsd_dev_ops = {
 		.xsd_ioctl = xmgmt_main_leaf_ioctl,
 	},

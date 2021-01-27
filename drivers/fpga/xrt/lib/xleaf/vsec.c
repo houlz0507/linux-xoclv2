@@ -30,7 +30,7 @@ struct xrt_vsec_header {
 } __packed;
 
 #define head_rd(g, r)			\
-	ioread32(&((struct xrt_vsec_header *)(g)->base)->(r))
+	ioread32((void *)(g)->base + offsetof(struct xrt_vsec_header, r))
 
 #define GET_BAR(entry)	(((entry)->bar_rev >> 4) & 0xf)
 #define GET_BAR_OFF(_entry)				\
@@ -318,7 +318,7 @@ struct xrt_subdev_endpoints xrt_vsec_endpoints[] = {
 	{ 0 },
 };
 
-struct xrt_subdev_drvdata xrt_vsec_data = {
+static struct xrt_subdev_drvdata xrt_vsec_data = {
 	.xsd_dev_ops = {
 		.xsd_ioctl = xrt_vsec_ioctl,
 	},
