@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Xilinx Kernel Driver XCLBIN parser
+ * Xilinx Alveo FPGA Driver XCLBIN parser
  *
- * Copyright (C) 2021 Xilinx, Inc.
+ * Copyright (C) 2020-2021 Xilinx, Inc.
  *
  * Authors: David Zhang <davidzha@xilinx.com>
  */

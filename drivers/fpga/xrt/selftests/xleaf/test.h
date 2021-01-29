@@ -1,6 +1,8 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2021 Xilinx, Inc.
+ * Header file for Xilinx Alveo Selftest Driver
+ *
+ * Copyright (C) 2020-2021 Xilinx, Inc.
  *
  * Authors:
  *	Sonal Santan <sonal.santan@xilinx.com>

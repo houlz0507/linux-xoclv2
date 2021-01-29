@@ -2,7 +2,7 @@
 /*
  * Xilinx Alveo FPGA MGMT PF entry point driver
  *
- * Copyright (C) 2021 Xilinx, Inc.
+ * Copyright (C) 2020-2021 Xilinx, Inc.
  *
  * Authors:
  *	Sonal Santan <sonals@xilinx.com>

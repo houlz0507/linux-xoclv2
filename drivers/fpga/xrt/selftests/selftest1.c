@@ -2,7 +2,7 @@
 /*
  * XRT driver infrastructure selftest 1
  *
- * Copyright (C) 2021 Xilinx, Inc.
+ * Copyright (C) 2020-2021 Xilinx, Inc.
  *
  * Authors:
  *     Sonal Santan <sonal.santan@xilinx.com>
