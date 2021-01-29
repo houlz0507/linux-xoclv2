@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
 #
-# Copyright (C) 2021 Xilinx, Inc. All rights reserved.
+# Copyright (C) 2020-2021 Xilinx, Inc. All rights reserved.
 #
 # Authors: Sonal.Santan@xilinx.com
 #
