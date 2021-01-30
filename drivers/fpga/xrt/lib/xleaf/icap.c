@@ -6,6 +6,8 @@
  *
  * Authors:
  *      Lizhi Hou<Lizhi.Hou@xilinx.com>
+ *      Sonal Santan <sonals@xilinx.com>
+ *      Max Zhen <maxz@xilinx.com>
  */
 
 #include <linux/mod_devicetable.h>

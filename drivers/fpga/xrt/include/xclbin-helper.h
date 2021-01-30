@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Header file for Xilinx Runtime (XRT) driver 
+ * Header file for Xilinx Runtime (XRT) driver
  *
  * Copyright (C) 2020-2021 Xilinx, Inc.
  *

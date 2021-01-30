@@ -1,3 +1,4 @@
+.. SPDX-License-Identifier: GPL-2.0
 ==================================
 XRTV2 Linux Kernel Driver Overview
 ==================================
