@@ -2,7 +2,7 @@
 /*
  *  Xilinx FPGA compiled binary container format
  *
- *  Copyright (C) 2015-2020, Xilinx Inc
+ *  Copyright (C) 2015-2021, Xilinx Inc
  */
 
 #ifndef _XCLBIN_H_

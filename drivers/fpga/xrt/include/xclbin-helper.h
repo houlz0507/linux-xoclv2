@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: Apache-2.0 OR GPL-2.0 */
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Xilinx Kernel Driver XCLBIN parser
+ * Header file for Xilinx Runtime (XRT) driver 
  *
- * Copyright (C) 2021 Xilinx, Inc.
+ * Copyright (C) 2020-2021 Xilinx, Inc.
  *
  * Authors:
  *    David Zhang <davidzha@xilinx.com>

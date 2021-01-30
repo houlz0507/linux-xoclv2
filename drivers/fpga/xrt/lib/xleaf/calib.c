@@ -2,7 +2,7 @@
 /*
  * Xilinx Alveo FPGA memory calibration driver
  *
- * Copyright (C) 2021 Xilinx, Inc.
+ * Copyright (C) 2020-2021 Xilinx, Inc.
  *
  * memory calibration
  *

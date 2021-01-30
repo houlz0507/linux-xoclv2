@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
+ * Xilinx Alveo FPGA Root Functions
  *
- * Copyright (C) 2021 Xilinx, Inc.
+ * Copyright (C) 2020-2021 Xilinx, Inc.
  *
  * Authors:
  *	Cheng Zhen <maxz@xilinx.com>

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Xilinx Alveo Management Function Driver
+ * FPGA Region Support for Xilinx Alveo Management Function Driver
  *
- * Copyright (C) 2021 Xilinx, Inc.
+ * Copyright (C) 2020-2021 Xilinx, Inc.
  * Bulk of the code borrowed from XRT mgmt driver file, fmgr.c
  *
  * Authors: Lizhi.Hou@xilinx.com
