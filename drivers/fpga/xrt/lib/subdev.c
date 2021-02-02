@@ -170,7 +170,7 @@ xrt_subdev_getres(struct device *parent, enum xrt_subdev_id id,
 	     xrt_md_get_next_endpoint(parent, dtb, ep_name, regmap,
 				      &ep_name, &regmap)) {
 		ret = xrt_md_get_prop(parent, dtb, ep_name, regmap,
-				      PROP_IO_OFFSET, (const void **)&bar_range, NULL);
+				      XRT_MD_PROP_IO_OFFSET, (const void **)&bar_range, NULL);
 		if (!ret)
 			count1++;
 	}
@@ -183,11 +183,11 @@ xrt_subdev_getres(struct device *parent, enum xrt_subdev_id id,
 	     ep_name;
 	     xrt_md_get_next_endpoint(parent, dtb, ep_name, regmap, &ep_name, &regmap)) {
 		ret = xrt_md_get_prop(parent, dtb, ep_name, regmap,
-				      PROP_IO_OFFSET, (const void **)&bar_range, NULL);
+				      XRT_MD_PROP_IO_OFFSET, (const void **)&bar_range, NULL);
 		if (ret)
 			continue;
 		xrt_md_get_prop(parent, dtb, ep_name, regmap,
-				PROP_BAR_IDX, (const void **)&bar_idx, NULL);
+				XRT_MD_PROP_BAR_IDX, (const void **)&bar_idx, NULL);
 		bar = bar_idx ? be32_to_cpu(*bar_idx) : 0;
 		xleaf_get_barres(to_platform_device(parent), &pci_res, bar);
 		(*res)[count2].start = pci_res->start +
@@ -580,7 +580,9 @@ xrt_subdev_release(struct xrt_subdev *sdev, struct device *holder_dev)
 			dev_name(holder_dev),
 			dev_name(DEV(sdev->xs_pdev)));
 	}
-	return found ? count : -EINVAL;
+
+	count = found ? count : -EINVAL;
+	return count;
 }
 
 int xrt_subdev_pool_add(struct xrt_subdev_pool *spool, enum xrt_subdev_id id,
@@ -608,7 +610,8 @@ int xrt_subdev_pool_add(struct xrt_subdev_pool *spool, enum xrt_subdev_id id,
 		ret = -EINVAL;
 	}
 
-	return ret ? ret : sdev->xs_pdev->id;
+	ret = ret ? ret : sdev->xs_pdev->id;
+	return ret;
 }
 
 int xrt_subdev_pool_del(struct xrt_subdev_pool *spool, enum xrt_subdev_id id,

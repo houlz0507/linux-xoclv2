@@ -250,8 +250,10 @@ void xrt_drv_put_instance(enum xrt_subdev_id id, int instance)
 struct xrt_subdev_endpoints *xrt_drv_get_endpoints(enum xrt_subdev_id id)
 {
 	struct xrt_drv_map *map = xrt_drv_find_map_by_id(id);
+	struct xrt_subdev_endpoints *eps;
 
-	return map ? map->eps : NULL;
+	eps = map ? map->eps : NULL;
+	return eps;
 }
 
 module_init(xrt_drv_register_drivers);

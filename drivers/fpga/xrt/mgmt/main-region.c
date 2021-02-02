@@ -99,12 +99,12 @@ static struct fpga_bridge *xmgmt_create_bridge(struct platform_device *pdev,
 		return NULL;
 	br_data->pdev = pdev;
 
-	br_data->axigate_name = NODE_GATE_ULP;
-	rc = xrt_md_get_epname_pointer(&pdev->dev, dtb, NODE_GATE_ULP,
+	br_data->axigate_name = XRT_MD_NODE_GATE_ULP;
+	rc = xrt_md_get_epname_pointer(&pdev->dev, dtb, XRT_MD_NODE_GATE_ULP,
 				       NULL, &gate);
 	if (rc) {
-		br_data->axigate_name = NODE_GATE_PLP;
-		rc = xrt_md_get_epname_pointer(&pdev->dev, dtb, NODE_GATE_PLP,
+		br_data->axigate_name = XRT_MD_NODE_GATE_PLP;
+		rc = xrt_md_get_epname_pointer(&pdev->dev, dtb, XRT_MD_NODE_GATE_PLP,
 					       NULL, &gate);
 	}
 	if (rc) {

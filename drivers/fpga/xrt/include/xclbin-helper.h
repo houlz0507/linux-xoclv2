@@ -34,8 +34,9 @@ struct hw_icap_bit_header {
 	unsigned char *design_name;     /* Design name get from bitstream */
 	unsigned char *part_name;       /* Part name read from bitstream */
 	unsigned char *date;           /* Date read from bitstream header */
-	unsigned char *time;           /* Bitstream creation time*/
-	unsigned int magic_length;      /* Length of the magic numbers*/
+	unsigned char *time;           /* Bitstream creation time */
+	unsigned int magic_length;      /* Length of the magic numbers */
+	unsigned char *version;		/* Version string */
 };
 
 const char *xrt_xclbin_kind_to_string(enum axlf_section_kind kind);

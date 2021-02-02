@@ -146,7 +146,8 @@ bail:
 	if (grp_dtb)
 		vfree(grp_dtb);
 
-	return failed == 0 ? 0 : -ECHILD;
+	ret = failed == 0 ? 0 : -ECHILD;
+	return ret;
 }
 
 static int xrt_grp_remove_leaves(struct xrt_group *xg)

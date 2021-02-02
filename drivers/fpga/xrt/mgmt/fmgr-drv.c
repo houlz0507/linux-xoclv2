@@ -39,9 +39,10 @@ static int xmgmt_download_bitstream(struct platform_device *pdev,
 	struct platform_device *icap_leaf = NULL;
 	struct xrt_icap_ioctl_wr arg;
 	char *bitstream = NULL;
+	u64 bit_len;
 	int ret;
 
-	ret = xrt_xclbin_get_section(xclbin, BITSTREAM, (void **)&bitstream, NULL);
+	ret = xrt_xclbin_get_section(xclbin, BITSTREAM, (void **)&bitstream, &bit_len);
 	if (ret || !bitstream) {
 		xrt_err(pdev, "bitstream not found");
 		return -ENOENT;
@@ -54,10 +55,18 @@ static int xmgmt_download_bitstream(struct platform_device *pdev,
 		xrt_err(pdev, "invalid bitstream header");
 		goto done;
 	}
+	if (bit_header.header_length + bit_header.bitstream_length > bit_len) {
+		ret = -EINVAL;
+		xrt_err(pdev, "invalid bitstream length. header %d, bitstream %d, section len %lld",
+			bit_header.header_length, bit_header.bitstream_length, bit_len);
+		goto done;
+	}
+
 	icap_leaf = xleaf_get_leaf_by_id(pdev, XRT_SUBDEV_ICAP, PLATFORM_DEVID_NONE);
 	if (!icap_leaf) {
 		ret = -ENODEV;
 		xrt_err(pdev, "icap does not exist");
+		xrt_xclbin_free_header(&bit_header);
 		goto done;
 	}
 	arg.xiiw_bit_data = bitstream + bit_header.header_length;
@@ -66,6 +75,7 @@ static int xmgmt_download_bitstream(struct platform_device *pdev,
 	if (ret)
 		xrt_err(pdev, "write bitstream failed, ret = %d", ret);
 
+	xrt_xclbin_free_header(&bit_header);
 done:
 	if (icap_leaf)
 		xleaf_put_leaf(pdev, icap_leaf);

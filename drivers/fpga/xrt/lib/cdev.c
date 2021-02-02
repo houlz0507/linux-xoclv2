@@ -93,7 +93,8 @@ __xleaf_devnode_open(struct inode *inode, bool excl)
 
 	mutex_unlock(&pdata->xsp_devnode_lock);
 
-	return opened ? pdev : NULL;
+	pdev = opened ? pdev : NULL;
+	return pdev;
 }
 
 struct platform_device *

@@ -8,13 +8,12 @@
 FULL_XRT_PATH=$(srctree)/$(src)/..
 FULL_DTC_PATH=$(srctree)/scripts/dtc/libfdt
 
-obj-$(CONFIG_FPGA_XRT_LIB) := xrt-lib.o
+obj-$(CONFIG_FPGA_XRT_LIB) += xrt-lib.o
 
 xrt-lib-objs :=			\
 	main.o			\
 	xroot.o			\
 	xclbin.o		\
-	metadata.o		\
 	subdev.o		\
 	cdev.o			\
 	group.o			\

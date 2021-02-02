@@ -189,7 +189,7 @@ xrt_calib_leaf_ioctl(struct platform_device *pdev, u32 cmd, void *arg)
 struct xrt_subdev_endpoints xrt_calib_endpoints[] = {
 	{
 		.xse_names = (struct xrt_subdev_ep_names[]) {
-			{ .ep_name = NODE_DDR_CALIB },
+			{ .ep_name = XRT_MD_NODE_DDR_CALIB },
 			{ NULL },
 		},
 		.xse_min_ep = 1,

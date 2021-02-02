@@ -66,9 +66,9 @@ static int get_dev_uuid(struct platform_device *pdev, char *uuidstr, size_t len)
 	struct xrt_gpio_ioctl_rw gpio_arg = { 0 };
 	int err, i, count;
 
-	gpio_leaf = xleaf_get_leaf_by_epname(pdev, NODE_BLP_ROM);
+	gpio_leaf = xleaf_get_leaf_by_epname(pdev, XRT_MD_NODE_BLP_ROM);
 	if (!gpio_leaf) {
-		xrt_err(pdev, "can not get %s", NODE_BLP_ROM);
+		xrt_err(pdev, "can not get %s", XRT_MD_NODE_BLP_ROM);
 		return -EINVAL;
 	}
 
@@ -330,7 +330,7 @@ static const char *get_uuid_from_firmware(struct platform_device *pdev,
 		return NULL;
 
 	rc = xrt_md_get_prop(DEV(pdev), dtb, NULL, NULL,
-			     PROP_LOGIC_UUID, &uuid, NULL);
+			     XRT_MD_PROP_LOGIC_UUID, &uuid, NULL);
 	if (!rc)
 		uuiddup = kstrdup(uuid, GFP_KERNEL);
 	vfree(dtb);
@@ -465,7 +465,7 @@ static void xmgmt_main_event_cb(struct platform_device *pdev, void *arg)
 	switch (e) {
 	case XRT_EVENT_POST_CREATION: {
 		if (id == XRT_SUBDEV_GPIO && !xmm->gpio_ready) {
-			leaf = xleaf_get_leaf_by_epname(pdev, NODE_BLP_ROM);
+			leaf = xleaf_get_leaf_by_epname(pdev, XRT_MD_NODE_BLP_ROM);
 			if (leaf) {
 				xmm->gpio_ready = true;
 				xleaf_put_leaf(pdev, leaf);
@@ -680,7 +680,7 @@ static long xmgmt_main_ioctl(struct file *filp, unsigned int cmd,
 static struct xrt_subdev_endpoints xrt_mgmt_main_endpoints[] = {
 	{
 		.xse_names = (struct xrt_subdev_ep_names []){
-			{ .ep_name = NODE_MGMT_MAIN },
+			{ .ep_name = XRT_MD_NODE_MGMT_MAIN },
 			{ NULL },
 		},
 		.xse_min_ep = 1,

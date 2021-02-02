@@ -198,7 +198,7 @@ failed:
 struct xrt_subdev_endpoints xrt_ucs_endpoints[] = {
 	{
 		.xse_names = (struct xrt_subdev_ep_names[]) {
-			{ .ep_name = NODE_UCS_CONTROL_STATUS },
+			{ .ep_name = XRT_MD_NODE_UCS_CONTROL_STATUS },
 			{ NULL },
 		},
 		.xse_min_ep = 1,

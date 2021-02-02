@@ -6,6 +6,10 @@
 config FPGA_XRT_XMGMT
 	tristate "Xilinx Alveo Management Driver"
 	depends on HWMON && PCI && FPGA_XRT_LIB
-	select LIBFDT
+	select FPGA_XRT_METADATA
+	select FPGA_BRIDGE
+	select FPGA_REGION
 	help
-	  XRT Alveo FPGA PCIe device driver for Management Physical Function.
+	  Select this option to enable XRT PCIe driver for Xilinx Alveo FPGA.
+	  This driver provides interfaces for userspace application to access
+	  Alveo FPGA device.

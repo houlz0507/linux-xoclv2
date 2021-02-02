@@ -377,7 +377,7 @@ static int get_freq_counter(struct clock *clock, u32 *freq)
 	struct platform_device *pdev = clock->pdev;
 	struct xrt_subdev_platdata *pdata = DEV_PDATA(clock->pdev);
 	int err = xrt_md_get_prop(DEV(pdev), pdata->xsp_dtb,
-		clock->clock_ep_name, NULL, PROP_CLK_CNT, &cnter, NULL);
+		clock->clock_ep_name, NULL, XRT_MD_PROP_CLK_CNT, &cnter, NULL);
 
 	WARN_ON(!mutex_is_locked(&clock->clock_lock));
 
@@ -472,7 +472,7 @@ static int clock_init(struct clock *clock)
 	const u16 *freq;
 
 	err = xrt_md_get_prop(DEV(clock->pdev), pdata->xsp_dtb,
-			      clock->clock_ep_name, NULL, PROP_CLK_FREQ,
+			      clock->clock_ep_name, NULL, XRT_MD_PROP_CLK_FREQ,
 		(const void **)&freq, NULL);
 	if (err) {
 		xrt_info(clock->pdev, "no default freq");

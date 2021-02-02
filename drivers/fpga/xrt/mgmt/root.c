@@ -228,9 +228,9 @@ static int xmgmt_create_root_metadata(struct xmgmt *xm, char **root_dtb)
 		 * Try vsec-golden which will bring up all hard-coded leaves
 		 * at hard-coded offsets.
 		 */
-		ret = xroot_add_simple_node(xm->root, dtb, NODE_VSEC_GOLDEN);
+		ret = xroot_add_simple_node(xm->root, dtb, XRT_MD_XRT_MD_NODE_VSEC_GOLDEN);
 	} else if (ret == 0) {
-		ret = xroot_add_simple_node(xm->root, dtb, NODE_MGMT_MAIN);
+		ret = xroot_add_simple_node(xm->root, dtb, XRT_MD_NODE_MGMT_MAIN);
 	}
 	if (ret)
 		goto failed;

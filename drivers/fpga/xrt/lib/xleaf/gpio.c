@@ -25,8 +25,8 @@ struct xrt_name_id {
 };
 
 static struct xrt_name_id name_id[XRT_GPIO_MAX] = {
-	{ NODE_BLP_ROM, XRT_GPIO_ROM_UUID },
-	{ NODE_GOLDEN_VER, XRT_GPIO_GOLDEN_VER },
+	{ XRT_MD_NODE_BLP_ROM, XRT_GPIO_ROM_UUID },
+	{ XRT_MD_NODE_GOLDEN_VER, XRT_GPIO_GOLDEN_VER },
 };
 
 struct xrt_gpio {
@@ -161,14 +161,14 @@ struct xrt_subdev_endpoints xrt_gpio_endpoints[] = {
 	{
 		.xse_names = (struct xrt_subdev_ep_names[]) {
 			/* add name if ep is in same partition */
-			{ .ep_name = NODE_BLP_ROM },
+			{ .ep_name = XRT_MD_NODE_BLP_ROM },
 			{ NULL },
 		},
 		.xse_min_ep = 1,
 	},
 	{
 		.xse_names = (struct xrt_subdev_ep_names[]) {
-			{ .ep_name = NODE_GOLDEN_VER },
+			{ .ep_name = XRT_MD_NODE_GOLDEN_VER },
 			{ NULL },
 		},
 		.xse_min_ep = 1,
