@@ -608,7 +608,7 @@ failed:
 	return ret;
 }
 
-struct xrt_subdev_endpoints xrt_clock_endpoints[] = {
+static struct xrt_subdev_endpoints xrt_clock_endpoints[] = {
 	{
 		.xse_names = (struct xrt_subdev_ep_names[]) {
 			{ .regmap_name = "clkwiz" },
@@ -630,7 +630,7 @@ static const struct platform_device_id xrt_clock_table[] = {
 	{ },
 };
 
-struct platform_driver xrt_clock_driver = {
+static struct platform_driver xrt_clock_driver = {
 	.driver = {
 		.name = XRT_CLOCK,
 	},
@@ -638,3 +638,11 @@ struct platform_driver xrt_clock_driver = {
 	.remove = clock_remove,
 	.id_table = xrt_clock_table,
 };
+
+void clock_leaf_init_fini(bool init)
+{
+	if (init)
+		xleaf_register_driver(XRT_SUBDEV_CLOCK, &xrt_clock_driver, xrt_clock_endpoints);
+	else
+		xleaf_unregister_driver(XRT_SUBDEV_CLOCK);
+}

@@ -104,10 +104,10 @@ static int xrt_grp_create_leaves(struct xrt_group *xg)
 		     eps->xse_names[i].regmap_name; i++) {
 			ep_name = (char *)eps->xse_names[i].ep_name;
 			if (!ep_name) {
-				(void)xrt_md_get_compatible_epname(DEV(xg->pdev),
-								    grp_dtb,
-								    eps->xse_names[i].regmap_name,
-								    &ep_name);
+				xrt_md_get_compatible_epname(DEV(xg->pdev),
+							     grp_dtb,
+							     eps->xse_names[i].regmap_name,
+							     &ep_name);
 			}
 			if (!ep_name)
 				continue;
@@ -141,13 +141,10 @@ static int xrt_grp_create_leaves(struct xrt_group *xg)
 	xg->leaves_created = true;
 
 bail:
+	vfree(grp_dtb);
 	mutex_unlock(&xg->lock);
 
-	if (grp_dtb)
-		vfree(grp_dtb);
-
-	ret = failed == 0 ? 0 : -ECHILD;
-	return ret;
+	return failed == 0 ? 0 : -ECHILD;
 }
 
 static int xrt_grp_remove_leaves(struct xrt_group *xg)
@@ -242,7 +239,7 @@ static int xrt_grp_ioctl(struct platform_device *pdev, u32 cmd, void *arg)
 	return rc;
 }
 
-struct xrt_subdev_drvdata xrt_grp_data = {
+static struct xrt_subdev_drvdata xrt_grp_data = {
 	.xsd_dev_ops = {
 		.xsd_ioctl = xrt_grp_ioctl,
 	},
@@ -253,7 +250,7 @@ static const struct platform_device_id xrt_grp_id_table[] = {
 	{ },
 };
 
-struct platform_driver xrt_group_driver = {
+static struct platform_driver xrt_group_driver = {
 	.driver	= {
 		.name    = XRT_GRP,
 	},
@@ -261,3 +258,11 @@ struct platform_driver xrt_group_driver = {
 	.remove  = xrt_grp_remove,
 	.id_table = xrt_grp_id_table,
 };
+
+void group_leaf_init_fini(bool init)
+{
+	if (init)
+		xleaf_register_driver(XRT_SUBDEV_GRP, &xrt_group_driver, NULL);
+	else
+		xleaf_unregister_driver(XRT_SUBDEV_GRP);
+}

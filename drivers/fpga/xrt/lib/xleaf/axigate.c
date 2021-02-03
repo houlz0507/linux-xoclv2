@@ -249,7 +249,7 @@ failed:
 	return ret;
 }
 
-struct xrt_subdev_endpoints xrt_axigate_endpoints[] = {
+static struct xrt_subdev_endpoints xrt_axigate_endpoints[] = {
 	{
 		.xse_names = (struct xrt_subdev_ep_names[]) {
 			{ .ep_name = "ep_pr_isolate_ulp_00" },
@@ -286,3 +286,13 @@ struct platform_driver xrt_axigate_driver = {
 	.remove = xrt_axigate_remove,
 	.id_table = xrt_axigate_table,
 };
+
+void axigate_leaf_init_fini(bool init)
+{
+	if (init) {
+		xleaf_register_driver(XRT_SUBDEV_AXIGATE,
+				      &xrt_axigate_driver, xrt_axigate_endpoints);
+	} else {
+		xleaf_unregister_driver(XRT_SUBDEV_AXIGATE);
+	}
+}

@@ -186,7 +186,7 @@ xrt_calib_leaf_ioctl(struct platform_device *pdev, u32 cmd, void *arg)
 	return ret;
 }
 
-struct xrt_subdev_endpoints xrt_calib_endpoints[] = {
+static struct xrt_subdev_endpoints xrt_calib_endpoints[] = {
 	{
 		.xse_names = (struct xrt_subdev_ep_names[]) {
 			{ .ep_name = XRT_MD_NODE_DDR_CALIB },
@@ -208,7 +208,7 @@ static const struct platform_device_id xrt_calib_table[] = {
 	{ },
 };
 
-struct platform_driver xrt_calib_driver = {
+static struct platform_driver xrt_calib_driver = {
 	.driver = {
 		.name = XRT_CALIB,
 	},
@@ -216,3 +216,11 @@ struct platform_driver xrt_calib_driver = {
 	.remove = xrt_calib_remove,
 	.id_table = xrt_calib_table,
 };
+
+void calib_leaf_init_fini(bool init)
+{
+	if (init)
+		xleaf_register_driver(XRT_SUBDEV_CALIB, &xrt_calib_driver, xrt_calib_endpoints);
+	else
+		xleaf_unregister_driver(XRT_SUBDEV_CALIB);
+}
