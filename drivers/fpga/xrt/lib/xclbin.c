@@ -24,11 +24,18 @@
 /* The imaginary module length register */
 #define XHI_MLR                  15
 
-#define XHI_DATA_AND_INC(d, i, sz)				\
-	({							\
-		typeof(i) _i = (i);				\
-		((_i >= (sz)) ? -1 : ((char *)(d))[_i++]);	\
-	})
+static inline unsigned char xhi_data_and_inc(const unsigned char *d, int *i, int sz)
+{
+	unsigned char data;
+
+	if (*i >= sz)
+		return -1;
+
+	data = d[*i];
+	(*i)++;
+
+	return data;
+}
 
 static const struct axlf_section_header *
 xrt_xclbin_get_section_hdr(const struct axlf *xclbin,
@@ -127,12 +134,12 @@ int xrt_xclbin_parse_bitstream_header(const unsigned char *data,
 	header->header_length = XHI_BIT_HEADER_FAILURE;
 
 	/* Get "Magic" length */
-	header->magic_length = XHI_DATA_AND_INC(data, index, size);
-	header->magic_length = (header->magic_length << 8) | XHI_DATA_AND_INC(data, index, size);
+	header->magic_length = xhi_data_and_inc(data, &index, size);
+	header->magic_length = (header->magic_length << 8) | xhi_data_and_inc(data, &index, size);
 
 	/* Read in "magic" */
 	for (i = 0; i < header->magic_length - 1; i++) {
-		tmp = XHI_DATA_AND_INC(data, index, size);
+		tmp = xhi_data_and_inc(data, &index, size);
 		if (i % 2 == 0 && tmp != XHI_EVEN_MAGIC_BYTE)
 			return -1;	/* INVALID_FILE_HEADER_ERROR */
 
@@ -141,31 +148,33 @@ int xrt_xclbin_parse_bitstream_header(const unsigned char *data,
 	}
 
 	/* Read null end of magic data. */
-	tmp = XHI_DATA_AND_INC(data, index, size);
+	tmp = xhi_data_and_inc(data, &index, size);
 
 	/* Read 0x01 (short) */
-	tmp = XHI_DATA_AND_INC(data, index, size);
-	tmp = (tmp << 8) | XHI_DATA_AND_INC(data, index, size);
+	tmp = xhi_data_and_inc(data, &index, size);
+	tmp = (tmp << 8) | xhi_data_and_inc(data, &index, size);
 
 	/* Check the "0x01" half word */
 	if (tmp != 0x01)
 		return -1;	/* INVALID_FILE_HEADER_ERROR */
 
 	/* Read 'a' */
-	tmp = XHI_DATA_AND_INC(data, index, size);
+	tmp = xhi_data_and_inc(data, &index, size);
 	if (tmp != 'a')
 		return -1;	/* INVALID_FILE_HEADER_ERROR	*/
 
 	/* Get Design Name length */
-	len = XHI_DATA_AND_INC(data, index, size);
-	len = (len << 8) | XHI_DATA_AND_INC(data, index, size);
+	len = xhi_data_and_inc(data, &index, size);
+	len = (len << 8) | xhi_data_and_inc(data, &index, size);
 
 	/* allocate space for design name and final null character. */
 	header->design_name = vmalloc(len);
+	if (!header->design_name)
+		return -ENOMEM;
 
 	/* Read in Design Name */
 	for (i = 0; i < len; i++)
-		header->design_name[i] = XHI_DATA_AND_INC(data, index, size);
+		header->design_name[i] = xhi_data_and_inc(data, &index, size);
 
 	if (header->design_name[len - 1] != '\0')
 		return -1;
@@ -173,75 +182,81 @@ int xrt_xclbin_parse_bitstream_header(const unsigned char *data,
 	header->version = strstr(header->design_name, "Version=") + strlen("Version=");
 
 	/* Read 'b' */
-	tmp = XHI_DATA_AND_INC(data, index, size);
+	tmp = xhi_data_and_inc(data, &index, size);
 	if (tmp != 'b')
 		return -1;	/* INVALID_FILE_HEADER_ERROR */
 
 	/* Get Part Name length */
-	len = XHI_DATA_AND_INC(data, index, size);
-	len = (len << 8) | XHI_DATA_AND_INC(data, index, size);
+	len = xhi_data_and_inc(data, &index, size);
+	len = (len << 8) | xhi_data_and_inc(data, &index, size);
 
 	/* allocate space for part name and final null character. */
 	header->part_name = vmalloc(len);
+	if (!header->part_name)
+		return -ENOMEM;
 
 	/* Read in part name */
 	for (i = 0; i < len; i++)
-		header->part_name[i] = XHI_DATA_AND_INC(data, index, size);
+		header->part_name[i] = xhi_data_and_inc(data, &index, size);
 
 	if (header->part_name[len - 1] != '\0')
 		return -1;
 
 	/* Read 'c' */
-	tmp = XHI_DATA_AND_INC(data, index, size);
+	tmp = xhi_data_and_inc(data, &index, size);
 	if (tmp != 'c')
 		return -1;	/* INVALID_FILE_HEADER_ERROR */
 
 	/* Get date length */
-	len = XHI_DATA_AND_INC(data, index, size);
-	len = (len << 8) | XHI_DATA_AND_INC(data, index, size);
+	len = xhi_data_and_inc(data, &index, size);
+	len = (len << 8) | xhi_data_and_inc(data, &index, size);
 
 	/* allocate space for date and final null character. */
 	header->date = vmalloc(len);
+	if (!header->date)
+		return -ENOMEM;
 
 	/* Read in date name */
 	for (i = 0; i < len; i++)
-		header->date[i] = XHI_DATA_AND_INC(data, index, size);
+		header->date[i] = xhi_data_and_inc(data, &index, size);
 
 	if (header->date[len - 1] != '\0')
 		return -1;
 
 	/* Read 'd' */
-	tmp = XHI_DATA_AND_INC(data, index, size);
+	tmp = xhi_data_and_inc(data, &index, size);
 	if (tmp != 'd')
 		return -1;	/* INVALID_FILE_HEADER_ERROR  */
 
 	/* Get time length */
-	len = XHI_DATA_AND_INC(data, index, size);
-	len = (len << 8) | XHI_DATA_AND_INC(data, index, size);
+	len = xhi_data_and_inc(data, &index, size);
+	len = (len << 8) | xhi_data_and_inc(data, &index, size);
 
 	/* allocate space for time and final null character. */
 	header->time = vmalloc(len);
+	if (!header->time)
+		return -ENOMEM;
 
 	/* Read in time name */
 	for (i = 0; i < len; i++)
-		header->time[i] = XHI_DATA_AND_INC(data, index, size);
+		header->time[i] = xhi_data_and_inc(data, &index, size);
 
 	if (header->time[len - 1] != '\0')
 		return -1;
 
 	/* Read 'e' */
-	tmp = XHI_DATA_AND_INC(data, index, size);
+	tmp = xhi_data_and_inc(data, &index, size);
 	if (tmp != 'e')
 		return -1;	/* INVALID_FILE_HEADER_ERROR */
 
 	/* Get byte length of bitstream */
-	header->bitstream_length = XHI_DATA_AND_INC(data, index, size);
+	header->bitstream_length = xhi_data_and_inc(data, &index, size);
 	header->bitstream_length = (header->bitstream_length << 8) |
-		XHI_DATA_AND_INC(data, index, size);
+		xhi_data_and_inc(data, &index, size);
 	header->bitstream_length = (header->bitstream_length << 8) |
-		XHI_DATA_AND_INC(data, index, size);
+		xhi_data_and_inc(data, &index, size);
 	header->bitstream_length = (header->bitstream_length << 8) |
-		XHI_DATA_AND_INC(data, index, size);
+		xhi_data_and_inc(data, &index, size);
 
 	header->header_length = index;
 

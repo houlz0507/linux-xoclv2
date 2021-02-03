@@ -106,12 +106,12 @@ static ssize_t metadata_output(struct file *filp, struct kobject *kobj,
 	struct platform_device *pdev = to_platform_device(dev);
 	struct xrt_subdev_platdata *pdata = DEV_PDATA(pdev);
 	unsigned char *blob;
-	long  size;
+	unsigned long  size;
 	ssize_t ret = 0;
 
 	blob = pdata->xsp_dtb;
 	size = xrt_md_size(dev, blob);
-	if (size <= 0) {
+	if (size == XRT_MD_INVALID_LENGTH) {
 		ret = -EINVAL;
 		goto failed;
 	}
@@ -247,7 +247,7 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 	struct xrt_subdev *sdev = NULL;
 	struct platform_device *pdev = NULL;
 	struct xrt_subdev_platdata *pdata = NULL;
-	long dtb_len = 0;
+	unsigned long dtb_len = 0;
 	size_t pdata_sz;
 	int inst = PLATFORM_DEVID_NONE;
 	struct resource *res = NULL;
@@ -263,7 +263,7 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 	if (dtb) {
 		xrt_md_pack(parent, dtb);
 		dtb_len = xrt_md_size(parent, dtb);
-		if (dtb_len <= 0) {
+		if (dtb_len == XRT_MD_INVALID_LENGTH) {
 			dev_err(parent, "invalid metadata len %ld", dtb_len);
 			goto fail;
 		}

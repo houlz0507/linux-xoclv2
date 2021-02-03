@@ -22,11 +22,11 @@ static int xrt_md_get_endpoint(struct device *dev, const char *blob,
 			       const char *ep_name, const char *regmap_name,
 			       int *ep_offset);
 
-long xrt_md_size(struct device *dev, const char *blob)
+unsigned long xrt_md_size(struct device *dev, const char *blob)
 {
-	long len = (long)fdt_totalsize(blob);
+	unsigned long len = (long)fdt_totalsize(blob);
 
-	len = (len > MAX_BLOB_SIZE) ? -EINVAL : len;
+	len = (len > MAX_BLOB_SIZE) ? XRT_MD_INVALID_LENGTH : len;
 	return len;
 }
 EXPORT_SYMBOL_GPL(xrt_md_size);

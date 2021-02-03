@@ -15,6 +15,8 @@
 #include <linux/vmalloc.h>
 #include <linux/uuid.h>
 
+#define XRT_MD_INVALID_LENGTH (~0UL)
+
 #define XRT_MD_PROP_COMPATIBLE "compatible"
 #define XRT_MD_PROP_PF_NUM "pcie_physical_function"
 #define XRT_MD_PROP_BAR_IDX "pcie_bar_mapping"
@@ -152,7 +154,7 @@ xrt_md_res_id2name(const struct xrt_iores_map *res_map, int entry_num, int id)
 	return NULL;
 }
 
-long xrt_md_size(struct device *dev, const char *blob);
+unsigned long xrt_md_size(struct device *dev, const char *blob);
 int xrt_md_create(struct device *dev, char **blob);
 int xrt_md_add_endpoint(struct device *dev, char *blob,
 			struct xrt_md_endpoint *ep);

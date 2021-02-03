@@ -58,7 +58,7 @@ static int xrt_grp_create_leaves(struct xrt_group *xg)
 	enum xrt_subdev_id did;
 	struct xrt_subdev_endpoints *eps = NULL;
 	int ep_count = 0, i, ret = 0, failed = 0;
-	long mlen;
+	unsigned long mlen;
 	char *dtb, *grp_dtb = NULL;
 	const char *ep_name;
 
@@ -76,7 +76,7 @@ static int xrt_grp_create_leaves(struct xrt_group *xg)
 		goto bail;
 
 	mlen = xrt_md_size(DEV(xg->pdev), pdata->xsp_dtb);
-	if (mlen <= 0) {
+	if (mlen == XRT_MD_INVALID_LENGTH) {
 		xrt_err(xg->pdev, "invalid dtb, len %ld", mlen);
 		goto bail;
 	}

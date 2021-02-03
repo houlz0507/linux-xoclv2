@@ -198,8 +198,18 @@ static int xrt_vsec_create_metadata(struct xrt_vsec *vsec)
 
 static int xrt_vsec_ioctl(struct platform_device *pdev, u32 cmd, void *arg)
 {
-	xrt_err(pdev, "should never been called");
-	return -EINVAL;
+	int ret = 0;
+        switch (cmd) {
+        case XRT_XLEAF_EVENT:
+                /* Does not handle any event. */
+                break;
+	default:
+		ret = -EINVAL;
+		xrt_err(pdev, "should never been called");
+		break;
+	}
+
+	return ret;
 }
 
 static int xrt_vsec_mapio(struct xrt_vsec *vsec)
@@ -211,7 +221,7 @@ static int xrt_vsec_mapio(struct xrt_vsec *vsec)
 	ulong addr;
 	int ret;
 
-	if (!pdata || xrt_md_size(DEV(vsec->pdev), pdata->xsp_dtb) <= 0) {
+	if (!pdata || xrt_md_size(DEV(vsec->pdev), pdata->xsp_dtb) == XRT_MD_INVALID_LENGTH) {
 		xrt_err(vsec->pdev, "empty metadata");
 		return -EINVAL;
 	}
