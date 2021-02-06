@@ -9,8 +9,8 @@
  *	Cheng Zhen <maxz@xilinx.com>
  */
 
-#ifndef	_XMGMT_MAIN_IMPL_H_
-#define	_XMGMT_MAIN_IMPL_H_
+#ifndef _XMGMT_MAIN_IMPL_H_
+#define _XMGMT_MAIN_IMPL_H_
 
 #include <linux/platform_device.h>
 #include "xmgmt-main.h"

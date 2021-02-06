@@ -278,7 +278,7 @@ static const struct platform_device_id xrt_axigate_table[] = {
 	{ },
 };
 
-struct platform_driver xrt_axigate_driver = {
+static struct platform_driver xrt_axigate_driver = {
 	.driver = {
 		.name = XRT_AXIGATE,
 	},
