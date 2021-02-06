@@ -148,6 +148,10 @@ static const struct attribute_group xrt_subdev_attrgroup = {
 	.bin_attrs = xrt_subdev_bin_attrs,
 };
 
+/*
+ * Given the device metadata, parse it to get IO ranges and construct
+ * resource array.
+ */
 static int
 xrt_subdev_getres(struct device *parent, enum xrt_subdev_id id,
 		  char *dtb, struct resource **res, int *res_num)
@@ -165,6 +169,7 @@ xrt_subdev_getres(struct device *parent, enum xrt_subdev_id id,
 
 	pdata = DEV_PDATA(to_platform_device(parent));
 
+	/* go through metadata and count endpoints in it */
 	for (xrt_md_get_next_endpoint(parent, dtb, NULL, NULL, &ep_name, &regmap); ep_name;
 	     xrt_md_get_next_endpoint(parent, dtb, ep_name, regmap, &ep_name, &regmap)) {
 		ret = xrt_md_get_prop(parent, dtb, ep_name, regmap,
@@ -175,8 +180,10 @@ xrt_subdev_getres(struct device *parent, enum xrt_subdev_id id,
 	if (!count1)
 		return 0;
 
+	/* allocate resource array for all endpoints been found in metadata */
 	*res = vzalloc(sizeof(**res) * count1);
 
+	/* go through all endpoints again and get IO range for each endpoint */
 	for (xrt_md_get_next_endpoint(parent, dtb, NULL, NULL, &ep_name, &regmap); ep_name;
 	     xrt_md_get_next_endpoint(parent, dtb, ep_name, regmap, &ep_name, &regmap)) {
 		ret = xrt_md_get_prop(parent, dtb, ep_name, regmap,

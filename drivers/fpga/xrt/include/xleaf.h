@@ -55,11 +55,11 @@ enum xrt_xleaf_ioctl_cmd {
  * char device (un)registration.
  */
 enum xrt_subdev_file_mode {
-	// Infra create cdev, default file name
+	/* Infra create cdev, default file name */
 	XRT_SUBDEV_FILE_DEFAULT = 0,
-	// Infra create cdev, need to encode inst num in file name
+	/* Infra create cdev, need to encode inst num in file name */
 	XRT_SUBDEV_FILE_MULTI_INST,
-	// No auto creation of cdev by infra, leaf handles it by itself
+	/* No auto creation of cdev by infra, leaf handles it by itself */
 	XRT_SUBDEV_FILE_NO_AUTO,
 };
 

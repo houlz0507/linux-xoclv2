@@ -18,7 +18,7 @@
  * Event notification.
  */
 enum xrt_events {
-	XRT_EVENT_TEST = 0, // for testing
+	XRT_EVENT_TEST = 0, /* for testing */
 	/*
 	 * Events related to specific subdev
 	 * Callback arg: struct xrt_event_arg_subdev
