@@ -199,10 +199,11 @@ static int xrt_vsec_create_metadata(struct xrt_vsec *vsec)
 static int xrt_vsec_ioctl(struct platform_device *pdev, u32 cmd, void *arg)
 {
 	int ret = 0;
-        switch (cmd) {
-        case XRT_XLEAF_EVENT:
-                /* Does not handle any event. */
-                break;
+
+	switch (cmd) {
+	case XRT_XLEAF_EVENT:
+		/* Does not handle any event. */
+		break;
 	default:
 		ret = -EINVAL;
 		xrt_err(pdev, "should never been called");
