@@ -169,19 +169,24 @@ int xrt_md_set_prop(struct device *dev, char *blob, const char *ep_name,
 int xrt_md_copy_endpoint(struct device *dev, char *blob, const char *src_blob,
 			 const char *ep_name, const char *regmap_name,
 			 const char *new_ep_name);
-int xrt_md_copy_all_eps(struct device *dev, char  *blob, const char *src_blob);
 int xrt_md_get_next_endpoint(struct device *dev, const char *blob,
 			     const char *ep_name,  const char *regmap_name,
 			     char **next_ep, char **next_regmap);
-int xrt_md_get_compatible_epname(struct device *dev, const char *blob,
-				 const char *regmap_name, const char **ep_name);
-int xrt_md_get_epname_pointer(struct device *dev, const char *blob,
-			      const char *ep_name, const char *regmap_name,
-			      const char **epname);
+int xrt_md_get_compatible_endpoint(struct device *dev, const char *blob,
+				   const char *regmap_name, const char **ep_name);
+int xrt_md_find_endpoint(struct device *dev, const char *blob,
+			 const char *ep_name, const char *regmap_name,
+			 const char **epname);
 void xrt_md_pack(struct device *dev, char *blob);
 char *xrt_md_dup(struct device *dev, const char *blob);
 int xrt_md_get_intf_uuids(struct device *dev, const char *blob,
 			  u32 *num_uuids, uuid_t *intf_uuids);
+static inline int xrt_md_copy_all_endpoints(struct device *dev, char *blob, const char *src_blob)
+{
+	return xrt_md_copy_endpoint(dev, blob, src_blob, XRT_MD_NODE_ENDPOINTS,
+				    NULL, NULL);
+}
+
 static inline int xrt_md_uuid_strtoid(struct device *dev, const char *uuidstr, uuid_t *p_uuid)
 {
 	char *p;

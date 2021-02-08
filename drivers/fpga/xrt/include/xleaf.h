@@ -164,7 +164,7 @@ struct subdev_match_arg {
 	int instance;
 };
 
-bool xleaf_has_epname(struct platform_device *pdev, const char *nm);
+bool xleaf_has_endpoint(struct platform_device *pdev, const char *endpoint_name);
 struct platform_device *xleaf_get_leaf(struct platform_device *pdev,
 				       xrt_subdev_match_t cb, void *arg);
 
@@ -179,7 +179,7 @@ static inline bool subdev_match(enum xrt_subdev_id id, struct platform_device *p
 static inline bool xrt_subdev_match_epname(enum xrt_subdev_id id,
 					   struct platform_device *pdev, void *arg)
 {
-	return xleaf_has_epname(pdev, arg);
+	return xleaf_has_endpoint(pdev, arg);
 }
 
 static inline struct platform_device *
@@ -265,7 +265,7 @@ void xleaf_unregister_driver(enum xrt_subdev_id id);
 void group_leaf_init_fini(bool init);
 void vsec_leaf_init_fini(bool init);
 void vsec_golden_leaf_init_fini(bool init);
-void gpio_leaf_init_fini(bool init);
+void devctl_leaf_init_fini(bool init);
 void axigate_leaf_init_fini(bool init);
 void icap_leaf_init_fini(bool init);
 void calib_leaf_init_fini(bool init);

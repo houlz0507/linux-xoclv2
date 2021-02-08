@@ -211,9 +211,9 @@ static int xrt_md_get_endpoint(struct device *dev, const char *blob,
 	return 0;
 }
 
-int xrt_md_get_epname_pointer(struct device *dev, const char *blob,
-			      const char *ep_name, const char *regmap_name,
-			      const char **epname)
+int xrt_md_find_endpoint(struct device *dev, const char *blob,
+			 const char *ep_name, const char *regmap_name,
+			 const char **epname)
 {
 	int offset;
 	int ret;
@@ -225,7 +225,7 @@ int xrt_md_get_epname_pointer(struct device *dev, const char *blob,
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(xrt_md_get_epname_pointer);
+EXPORT_SYMBOL_GPL(xrt_md_find_endpoint);
 
 int xrt_md_get_prop(struct device *dev, const char *blob, const char *ep_name,
 		    const char *regmap_name, const char *prop,
@@ -337,13 +337,6 @@ int xrt_md_copy_endpoint(struct device *dev, char *blob, const char *src_blob,
 	return ret;
 }
 EXPORT_SYMBOL_GPL(xrt_md_copy_endpoint);
-
-int xrt_md_copy_all_eps(struct device *dev, char *blob, const char *src_blob)
-{
-	return xrt_md_copy_endpoint(dev, blob, src_blob, XRT_MD_NODE_ENDPOINTS,
-		NULL, NULL);
-}
-EXPORT_SYMBOL_GPL(xrt_md_copy_all_eps);
 
 char *xrt_md_dup(struct device *dev, const char *blob)
 {
@@ -467,8 +460,8 @@ int xrt_md_get_next_endpoint(struct device *dev, const char *blob,
 }
 EXPORT_SYMBOL_GPL(xrt_md_get_next_endpoint);
 
-int xrt_md_get_compatible_epname(struct device *dev, const char *blob,
-				 const char *regmap_name, const char **ep_name)
+int xrt_md_get_compatible_endpoint(struct device *dev, const char *blob,
+				   const char *regmap_name, const char **ep_name)
 {
 	int ep_offset;
 
@@ -482,7 +475,7 @@ int xrt_md_get_compatible_epname(struct device *dev, const char *blob,
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(xrt_md_get_compatible_epname);
+EXPORT_SYMBOL_GPL(xrt_md_get_compatible_endpoint);
 
 void xrt_md_pack(struct device *dev, char *blob)
 {

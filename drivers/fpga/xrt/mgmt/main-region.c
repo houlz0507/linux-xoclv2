@@ -100,12 +100,12 @@ static struct fpga_bridge *xmgmt_create_bridge(struct platform_device *pdev,
 	br_data->pdev = pdev;
 
 	br_data->axigate_name = XRT_MD_NODE_GATE_ULP;
-	rc = xrt_md_get_epname_pointer(&pdev->dev, dtb, XRT_MD_NODE_GATE_ULP,
-				       NULL, &gate);
+	rc = xrt_md_find_endpoint(&pdev->dev, dtb, XRT_MD_NODE_GATE_ULP,
+				  NULL, &gate);
 	if (rc) {
 		br_data->axigate_name = XRT_MD_NODE_GATE_PLP;
-		rc = xrt_md_get_epname_pointer(&pdev->dev, dtb, XRT_MD_NODE_GATE_PLP,
-					       NULL, &gate);
+		rc = xrt_md_find_endpoint(&pdev->dev, dtb, XRT_MD_NODE_GATE_PLP,
+					  NULL, &gate);
 	}
 	if (rc) {
 		xrt_err(pdev, "failed to get axigate, rc %d", rc);

@@ -214,8 +214,8 @@ xrt_subdev_getres(struct device *parent, enum xrt_subdev_id id,
 
 		(*res)[count2].parent = pci_res;
 
-		xrt_md_get_epname_pointer(parent, pdata->xsp_dtb, ep_name,
-					  regmap, &(*res)[count2].name);
+		xrt_md_find_endpoint(parent, pdata->xsp_dtb, ep_name,
+				     regmap, &(*res)[count2].name);
 
 		count2++;
 	}
@@ -393,7 +393,7 @@ xleaf_get_leaf(struct platform_device *pdev,
 }
 EXPORT_SYMBOL_GPL(xleaf_get_leaf);
 
-bool xleaf_has_epname(struct platform_device *pdev, const char *ep_name)
+bool xleaf_has_endpoint(struct platform_device *pdev, const char *endpoint_name)
 {
 	struct resource	*res;
 	int		i;
@@ -401,13 +401,13 @@ bool xleaf_has_epname(struct platform_device *pdev, const char *ep_name)
 	for (i = 0, res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	    res;
 	    res = platform_get_resource(pdev, IORESOURCE_MEM, ++i)) {
-		if (!strncmp(res->name, ep_name, strlen(res->name) + 1))
+		if (!strncmp(res->name, endpoint_name, strlen(res->name) + 1))
 			return true;
 	}
 
 	return false;
 }
-EXPORT_SYMBOL_GPL(xleaf_has_epname);
+EXPORT_SYMBOL_GPL(xleaf_has_endpoint);
 
 int xleaf_put_leaf(struct platform_device *pdev,
 		   struct platform_device *leaf)

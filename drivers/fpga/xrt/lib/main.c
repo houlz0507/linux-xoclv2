@@ -218,7 +218,7 @@ struct xrt_subdev_endpoints *xrt_drv_get_endpoints(enum xrt_subdev_id id)
 static void (*leaf_init_fini_cbs[])(bool) = {
 	group_leaf_init_fini,
 	vsec_leaf_init_fini,
-	gpio_leaf_init_fini,
+	devctl_leaf_init_fini,
 	axigate_leaf_init_fini,
 	icap_leaf_init_fini,
 	calib_leaf_init_fini,

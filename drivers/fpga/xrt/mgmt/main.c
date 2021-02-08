@@ -14,7 +14,7 @@
 #include "metadata.h"
 #include "xleaf.h"
 #include <linux/xrt/xmgmt-ioctl.h>
-#include "xleaf/gpio.h"
+#include "xleaf/devctl.h"
 #include "xmgmt-main.h"
 #include "fmgr.h"
 #include "xleaf/icap.h"
@@ -29,7 +29,7 @@ struct xmgmt_main {
 	struct axlf *firmware_plp;
 	struct axlf *firmware_ulp;
 	bool flash_ready;
-	bool gpio_ready;
+	bool devctl_ready;
 	struct fpga_manager *fmgr;
 	struct mutex busy_mutex; /* busy lock */
 
@@ -66,22 +66,22 @@ char *xmgmt_get_vbnv(struct platform_device *pdev)
 static int get_dev_uuid(struct platform_device *pdev, char *uuidstr, size_t len)
 {
 	char uuid[16];
-	struct platform_device *gpio_leaf;
-	struct xrt_gpio_ioctl_rw gpio_arg = { 0 };
+	struct platform_device *devctl_leaf;
+	struct xrt_devctl_ioctl_rw devctl_arg = { 0 };
 	int err, i, count;
 
-	gpio_leaf = xleaf_get_leaf_by_epname(pdev, XRT_MD_NODE_BLP_ROM);
-	if (!gpio_leaf) {
+	devctl_leaf = xleaf_get_leaf_by_epname(pdev, XRT_MD_NODE_BLP_ROM);
+	if (!devctl_leaf) {
 		xrt_err(pdev, "can not get %s", XRT_MD_NODE_BLP_ROM);
 		return -EINVAL;
 	}
 
-	gpio_arg.xgir_id = XRT_GPIO_ROM_UUID;
-	gpio_arg.xgir_buf = uuid;
-	gpio_arg.xgir_len = sizeof(uuid);
-	gpio_arg.xgir_offset = 0;
-	err = xleaf_ioctl(gpio_leaf, XRT_GPIO_READ, &gpio_arg);
-	xleaf_put_leaf(pdev, gpio_leaf);
+	devctl_arg.xgir_id = XRT_DEVCTL_ROM_UUID;
+	devctl_arg.xgir_buf = uuid;
+	devctl_arg.xgir_len = sizeof(uuid);
+	devctl_arg.xgir_offset = 0;
+	err = xleaf_ioctl(devctl_leaf, XRT_DEVCTL_READ, &devctl_arg);
+	xleaf_put_leaf(pdev, devctl_leaf);
 	if (err) {
 		xrt_err(pdev, "can not get uuid: %d", err);
 		return err;
@@ -442,10 +442,10 @@ static void xmgmt_main_event_cb(struct platform_device *pdev, void *arg)
 
 	switch (e) {
 	case XRT_EVENT_POST_CREATION: {
-		if (id == XRT_SUBDEV_GPIO && !xmm->gpio_ready) {
+		if (id == XRT_SUBDEV_DEVCTL && !xmm->devctl_ready) {
 			leaf = xleaf_get_leaf_by_epname(pdev, XRT_MD_NODE_BLP_ROM);
 			if (leaf) {
-				xmm->gpio_ready = true;
+				xmm->devctl_ready = true;
 				xleaf_put_leaf(pdev, leaf);
 			}
 		} else if (id == XRT_SUBDEV_QSPI && !xmm->flash_ready) {
@@ -454,7 +454,7 @@ static void xmgmt_main_event_cb(struct platform_device *pdev, void *arg)
 			break;
 		}
 
-		if (xmm->gpio_ready)
+		if (xmm->devctl_ready)
 			(void)xmgmt_load_firmware(xmm);
 		break;
 	}
