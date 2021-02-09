@@ -25,8 +25,7 @@ struct axlf;
 
 /**
  * Bitstream header information as defined by Xilinx tools.
- * Please note that this struct definition is not owned by the driver and
- * hence it does not use Linux coding style.
+ * Please note that this struct definition is not owned by the driver.
  */
 struct hw_icap_bit_header {
 	unsigned int header_length;     /* Length of header in 32 bit words */
