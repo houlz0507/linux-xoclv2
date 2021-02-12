@@ -509,8 +509,8 @@ int xrt_md_get_intf_uuids(struct device *dev, const char *blob,
 		}
 
 		if (intf_uuids && count < *num_uuids) {
-			ret = xrt_md_uuid_strtoid(dev, uuid_str,
-						  &intf_uuids[count]);
+			ret = xrt_md_trans_str2uuid(dev, uuid_str,
+						    &intf_uuids[count]);
 			if (ret)
 				return -EINVAL;
 		}

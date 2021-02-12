@@ -17,7 +17,7 @@
  * DEVCTL driver IOCTL calls.
  */
 enum xrt_devctl_ioctl_cmd {
-	XRT_DEVCTL_READ = XRT_XLEAF_CUSTOM_BASE,
+	XRT_DEVCTL_READ = XRT_XLEAF_CUSTOM_BASE, /* See comments in xleaf.h */
 	XRT_DEVCTL_WRITE,
 };
 

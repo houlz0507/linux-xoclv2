@@ -146,15 +146,6 @@ static ssize_t logic_uuids_show(struct device *dev, struct device_attribute *da,
 }
 static DEVICE_ATTR_RO(logic_uuids);
 
-static inline void uuid2str(const uuid_t *uuid, char *uuidstr)
-{
-	int i, p;
-	u8 *u = (u8 *)uuid;
-
-	for (p = 0, i = sizeof(uuid_t) - 1; i >= 0; p++, i--)
-		(void)snprintf(&uuidstr[p * 2], 3, "%02x", u[i]);
-}
-
 static ssize_t interface_uuids_show(struct device *dev, struct device_attribute *da, char *buf)
 {
 	ssize_t ret = 0;
@@ -165,7 +156,7 @@ static ssize_t interface_uuids_show(struct device *dev, struct device_attribute 
 	for (i = 0; i < xmm->blp_intf_uuid_num; i++) {
 		char uuidstr[80];
 
-		uuid2str(&xmm->blp_intf_uuids[i], uuidstr);
+		xrt_md_trans_uuid2str(&xmm->blp_intf_uuids[i], uuidstr);
 		ret += sprintf(buf + ret, "%s\n", uuidstr);
 	}
 	return ret;
@@ -373,7 +364,7 @@ int xmgmt_get_provider_uuid(struct platform_device *pdev, enum provider_kind kin
 	if (!fw_uuid)
 		goto done;
 
-	rc = xrt_md_uuid_strtoid(DEV(pdev), fw_uuid, uuid);
+	rc = xrt_md_trans_str2uuid(DEV(pdev), fw_uuid, uuid);
 	kfree(fw_uuid);
 
 done:

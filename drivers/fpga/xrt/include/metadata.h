@@ -187,7 +187,22 @@ static inline int xrt_md_copy_all_endpoints(struct device *dev, char *blob, cons
 				    NULL, NULL);
 }
 
-static inline int xrt_md_uuid_strtoid(struct device *dev, const char *uuidstr, uuid_t *p_uuid)
+/*
+ * Firmware provides 128 bit hash string as unque id of partition/interface.
+ * This string will be canonical textual representation in the future.
+ * Before that, introducing these two functions below to translate
+ * hash string to uuid_t for released hardware.
+ */
+static inline void xrt_md_trans_uuid2str(const uuid_t *uuid, char *uuidstr)
+{
+	int i, p;
+	u8 *u = (u8 *)uuid;
+
+	for (p = 0, i = sizeof(uuid_t) - 1; i >= 0; p++, i--)
+		(void)snprintf(&uuidstr[p * 2], 3, "%02x", u[i]);
+}
+
+static inline int xrt_md_trans_str2uuid(struct device *dev, const char *uuidstr, uuid_t *p_uuid)
 {
 	char *p;
 	const char *str;
