@@ -284,7 +284,9 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 	} else {
 		struct platform_device *grp = to_platform_device(parent);
 		/* Leaf can only be created by group driver. */
-		WARN_ON(strcmp(xrt_drv_name(XRT_SUBDEV_GRP), platform_get_device_id(grp)->name));
+		WARN_ON(strncmp(xrt_drv_name(XRT_SUBDEV_GRP),
+				platform_get_device_id(grp)->name,
+				strlen(xrt_drv_name(XRT_SUBDEV_GRP)) + 1));
 		pdata->xsp_root_name = DEV_PDATA(grp)->xsp_root_name;
 	}
 

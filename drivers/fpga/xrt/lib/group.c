@@ -132,7 +132,9 @@ static int xrt_grp_create_leaves(struct xrt_group *xg)
 					xrt_drv_name(did), ret);
 			}
 		} else if (ep_count > 0) {
-			xrt_md_copy_all_endpoints(DEV(xg->pdev), grp_dtb, dtb);
+			/* copy all endpoints */
+			xrt_md_copy_endpoint(DEV(xg->pdev), grp_dtb, dtb,
+					     XRT_MD_NODE_ENDPOINTS, NULL, NULL);
 		}
 		vfree(dtb);
 		ep_count = 0;

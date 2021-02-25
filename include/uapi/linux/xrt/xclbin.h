@@ -137,8 +137,8 @@ struct axlf_section_header {
 	char m_sectionName[16];		    /* Examples: "stage2", "clear1", */
 					    /* "clear2", "ocl1", "ocl2, */
 					    /* "ublaze", "sched" */
-	uint64_t m_sectionOffset;	    /* File offset of section data */
-	uint64_t m_sectionSize;		    /* Size of section data */
+	uint64_t section_offset;	    /* File offset of section data */
+	uint64_t section_size;		    /* Size of section data */
 };
 
 struct axlf_header {

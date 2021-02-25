@@ -301,7 +301,7 @@ static const char *get_uuid_from_firmware(struct platform_device *pdev, const st
 	void *dtb = NULL;
 	int rc;
 
-	rc = xrt_xclbin_get_section(xclbin, PARTITION_METADATA, &dtb, NULL);
+	rc = xrt_xclbin_get_section(DEV(pdev), xclbin, PARTITION_METADATA, &dtb, NULL);
 	if (rc)
 		return NULL;
 
@@ -325,7 +325,7 @@ static bool is_valid_firmware(struct platform_device *pdev,
 	if (err)
 		return false;
 
-	if (memcmp(fw_buf, ICAP_XCLBIN_V2, sizeof(ICAP_XCLBIN_V2)) != 0) {
+	if (memcmp(fw_buf, XCLBIN_VERSION2, sizeof(XCLBIN_VERSION2)) != 0) {
 		xrt_err(pdev, "unknown fw format");
 		return false;
 	}
@@ -336,7 +336,7 @@ static bool is_valid_firmware(struct platform_device *pdev,
 	}
 
 	fw_uuid = get_uuid_from_firmware(pdev, xclbin);
-	if (!fw_uuid || strcmp(fw_uuid, dev_uuid) != 0) {
+	if (!fw_uuid || strncmp(fw_uuid, dev_uuid, sizeof(dev_uuid)) != 0) {
 		xrt_err(pdev, "bad fw UUID: %s, expect: %s",
 			fw_uuid ? fw_uuid : "<none>", dev_uuid);
 		kfree(fw_uuid);
@@ -394,10 +394,11 @@ static int xmgmt_create_blp(struct xmgmt_main *xmm)
 			rc = 0;
 
 		WARN_ON(xmm->blp_intf_uuids);
-		xrt_md_get_intf_uuids(&pdev->dev, dtb, &xmm->blp_intf_uuid_num, NULL);
-		if (xmm->blp_intf_uuid_num > 0) {
+		rc = xrt_md_get_interface_uuids(&pdev->dev, dtb, 0, NULL);
+		if (rc > 0) {
+			xmm->blp_intf_uuid_num = rc;
 			xmm->blp_intf_uuids = vzalloc(sizeof(uuid_t) * xmm->blp_intf_uuid_num);
-			xrt_md_get_intf_uuids(&pdev->dev, dtb, &xmm->blp_intf_uuid_num,
+			xrt_md_get_interface_uuids(&pdev->dev, dtb, xmm->blp_intf_uuid_num,
 					      xmm->blp_intf_uuids);
 		}
 	}
@@ -517,7 +518,8 @@ xmgmt_main_leaf_ioctl(struct platform_device *pdev, u32 cmd, void *arg)
 		if (!firmware) {
 			ret = -ENOENT;
 		} else {
-			ret = xrt_xclbin_get_section(firmware, get->xmmigas_section_kind,
+			ret = xrt_xclbin_get_section(DEV(pdev), firmware,
+						     get->xmmigas_section_kind,
 						     &get->xmmigas_section,
 						     &get->xmmigas_section_size);
 		}
@@ -595,11 +597,11 @@ static int bitstream_axlf_ioctl(struct xmgmt_main *xmm, const void __user *arg)
 		return -EFAULT;
 	if (copy_from_user((void *)&xclbin_obj, ioc_obj.xclbin, sizeof(xclbin_obj)))
 		return -EFAULT;
-	if (memcmp(xclbin_obj.m_magic, ICAP_XCLBIN_V2, sizeof(ICAP_XCLBIN_V2)))
+	if (memcmp(xclbin_obj.m_magic, XCLBIN_VERSION2, sizeof(XCLBIN_VERSION2)))
 		return -EINVAL;
 
 	copy_buffer_size = xclbin_obj.m_header.m_length;
-	if (copy_buffer_size > MAX_XCLBIN_SIZE)
+	if (copy_buffer_size > XCLBIN_MAX_SIZE)
 		return -EINVAL;
 	copy_buffer = vmalloc(copy_buffer_size);
 	if (!copy_buffer)

@@ -14,52 +14,41 @@
 #include "metadata.h"
 
 /* Used for parsing bitstream header */
-#define XHI_EVEN_MAGIC_BYTE     0x0f
-#define XHI_ODD_MAGIC_BYTE      0xf0
+#define BITSTREAM_EVEN_MAGIC_BYTE	0x0f
+#define BITSTREAM_ODD_MAGIC_BYTE	0xf0
 
-/* Extra mode for IDLE */
-#define XHI_OP_IDLE  -1
-#define XHI_BIT_HEADER_FAILURE -1
-
-/* The imaginary module length register */
-#define XHI_MLR                  15
-
-static inline unsigned char xhi_data_and_inc(const unsigned char *d, int *i, int sz)
-{
-	unsigned char data;
-
-	if (*i >= sz)
-		return -1;
-
-	data = d[*i];
-	(*i)++;
-
-	return data;
-}
+#define XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size)		\
+	({							\
+		typeof(offset) _offset = offset++;		\
+		if (_offset >= size)				\
+			return -EINVAL;				\
+		tmp = data[_offset];				\
+	})
 
 static const struct axlf_section_header *
 xrt_xclbin_get_section_hdr(const struct axlf *xclbin,
 			   enum axlf_section_kind kind)
 {
+	const struct axlf_section_header *header = 0;
+	u64 xclbin_len;
 	int i = 0;
 
 	for (i = 0; i < xclbin->m_header.m_numSections; i++) {
 		if (xclbin->m_sections[i].m_sectionKind == kind)
-			return &xclbin->m_sections[i];
+			header = &xclbin->m_sections[i];
 	}
 
-	return NULL;
-}
+	if (!header)
+		return NULL;
 
-static int
-xrt_xclbin_check_section_hdr(const struct axlf_section_header *header,
-			     u64 xclbin_len)
-{
-	int ret;
+	xclbin_len = xclbin->m_header.m_length;
+	if (xclbin_len > XCLBIN_MAX_SIZE)
+		return NULL;
 
-	ret = (header->m_sectionOffset + header->m_sectionSize) > xclbin_len ? -EINVAL : 0;
+	if (header->section_offset + header->section_size > xclbin_len)
+		return NULL;
 
-	return ret;
+	return header;
 }
 
 static int xrt_xclbin_section_info(const struct axlf *xclbin,
@@ -67,41 +56,39 @@ static int xrt_xclbin_section_info(const struct axlf *xclbin,
 				   u64 *offset, u64 *size)
 {
 	const struct axlf_section_header *mem_header = NULL;
-	u64 xclbin_len;
-	int err = 0;
 
 	mem_header = xrt_xclbin_get_section_hdr(xclbin, kind);
 	if (!mem_header)
 		return -EINVAL;
 
-	xclbin_len = xclbin->m_header.m_length;
-	if (xclbin_len > MAX_XCLBIN_SIZE)
-		return -EINVAL;
-
-	err = xrt_xclbin_check_section_hdr(mem_header, xclbin_len);
-	if (err)
-		return err;
-
-	*offset = mem_header->m_sectionOffset;
-	*size = mem_header->m_sectionSize;
+	*offset = mem_header->section_offset;
+	*size = mem_header->section_size;
 
 	return 0;
 }
 
-/* caller should free the allocated memory for **data */
-int xrt_xclbin_get_section(const struct axlf *buf,
+/* caller must free the allocated memory for **data */
+int xrt_xclbin_get_section(struct device *dev,
+			   const struct axlf *buf,
 			   enum axlf_section_kind kind,
 			   void **data, u64 *len)
 {
 	const struct axlf *xclbin = (const struct axlf *)buf;
 	void *section = NULL;
-	int err = 0;
 	u64 offset = 0;
 	u64 size = 0;
+	int err = 0;
+
+	if (!data || !len) {
+		dev_err(dev, "invalid data or len pointer");
+		return -EINVAL;
+	}
 
 	err = xrt_xclbin_section_info(xclbin, kind, &offset, &size);
-	if (err)
+	if (err) {
+		dev_err(dev, "parsing section failed. err = %d", err);
 		return err;
+	}
 
 	section = vmalloc(size);
 	if (!section)
@@ -110,171 +97,141 @@ int xrt_xclbin_get_section(const struct axlf *buf,
 	memcpy(section, ((const char *)xclbin) + offset, size);
 
 	*data = section;
-	if (len)
-		*len = size;
+	*len = size;
 
 	return 0;
 }
 EXPORT_SYMBOL_GPL(xrt_xclbin_get_section);
 
-/* parse bitstream header */
-int xrt_xclbin_parse_bitstream_header(const unsigned char *data,
-				      unsigned int size,
-				      struct hw_icap_bit_header *header)
+static inline int xclbin_bit_get_string(const unchar *data, u32 size, u32 offset, unchar prefix, const unchar **str)
 {
-	unsigned int index;
-	unsigned int len;
-	unsigned int tmp;
-	unsigned int i;
+	int len;
+	u32 tmp;
 
-	memset(header, 0, sizeof(*header));
-	/* Start Index at start of bitstream */
-	index = 0;
+	/* Read prefix */
+	XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size);
+	if (tmp != prefix)
+		return -EINVAL;
 
-	/* Initialize HeaderLength.  If header returned early inidicates
-	 * failure.
-	 */
-	header->header_length = XHI_BIT_HEADER_FAILURE;
+	/* Get string length */
+	XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size);
+	len = tmp;
+	XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size);
+	len = (len << 8) | tmp;
 
-	/* Get "Magic" length */
-	header->magic_length = xhi_data_and_inc(data, &index, size);
-	header->magic_length = (header->magic_length << 8) | xhi_data_and_inc(data, &index, size);
+	if (offset + len > size)
+		return -EINVAL;
 
-	/* Read in "magic" */
-	for (i = 0; i < header->magic_length - 1; i++) {
-		tmp = xhi_data_and_inc(data, &index, size);
-		if (i % 2 == 0 && tmp != XHI_EVEN_MAGIC_BYTE)
-			return -1;	/* INVALID_FILE_HEADER_ERROR */
+	if (data[offset + len - 1] != '\0')
+		return -EINVAL;
 
-		if (i % 2 == 1 && tmp != XHI_ODD_MAGIC_BYTE)
-			return -1;	/* INVALID_FILE_HEADER_ERROR */
+	*str = data + offset;
+
+	return len;
+}
+
+/* parse bitstream header */
+int xrt_xclbin_parse_bitstream_header(struct device *dev, const unchar *data,
+				      u32 size, struct xclbin_bit_head_info *head_info)
+{
+	u32 offset = 0;
+	int len, i;
+	u16 magic;
+	unchar tmp;
+
+	memset(head_info, 0, sizeof(*head_info));
+
+	/* Get "Magic" length, XCLBIN_BIT_NEXT_BYTE increase offset by 1 */
+	XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size);
+	head_info->magic_length = tmp;
+	XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size);
+	head_info->magic_length = (head_info->magic_length << 8) | tmp;
+
+	for (i = 0; i < head_info->magic_length - 1; i++) {
+		XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size);
+		if (!(i % 2) && tmp != BITSTREAM_EVEN_MAGIC_BYTE) {
+			dev_err(dev, "invalid magic even byte at %d", offset);
+			return -EINVAL;
+		}
+
+		XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size);
+		if ((i % 2) && tmp != BITSTREAM_ODD_MAGIC_BYTE) {
+			dev_err(dev, "invalid magic odd byte at %d", offset);
+			return -EINVAL;
+		}
 	}
 
 	/* Read null end of magic data. */
-	tmp = xhi_data_and_inc(data, &index, size);
+	XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size);
+	if (tmp) {
+		dev_err(dev, "invalid magic end");
+		return -EINVAL;
+	}
 
 	/* Read 0x01 (short) */
-	tmp = xhi_data_and_inc(data, &index, size);
-	tmp = (tmp << 8) | xhi_data_and_inc(data, &index, size);
+	XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size);
+	magic = tmp;
+	XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size);
+	magic = (magic << 8) | tmp;
 
 	/* Check the "0x01" half word */
-	if (tmp != 0x01)
-		return -1;	/* INVALID_FILE_HEADER_ERROR */
+	if (magic != 0x01) {
+		dev_err(dev, "invalid magic");
+		return -EINVAL;
+	}
 
-	/* Read 'a' */
-	tmp = xhi_data_and_inc(data, &index, size);
-	if (tmp != 'a')
-		return -1;	/* INVALID_FILE_HEADER_ERROR	*/
+	len = xclbin_bit_get_string(data, size, offset, 'a', &head_info->design_name);
+	if (len < 0) {
+		dev_err(dev, "get design name failed");
+		return -EINVAL;
+	}
 
-	/* Get Design Name length */
-	len = xhi_data_and_inc(data, &index, size);
-	len = (len << 8) | xhi_data_and_inc(data, &index, size);
+	head_info->version = strstr(head_info->design_name, "Version=") + strlen("Version=");
+	offset += len;
 
-	/* allocate space for design name and final null character. */
-	header->design_name = vmalloc(len);
-	if (!header->design_name)
-		return -ENOMEM;
+	len = xclbin_bit_get_string(data, size, offset, 'b', &head_info->part_name);
+	if (len < 0) {
+		dev_err(dev, "get part name failed");
+		return -EINVAL;
+	}
+	offset += len;
 
-	/* Read in Design Name */
-	for (i = 0; i < len; i++)
-		header->design_name[i] = xhi_data_and_inc(data, &index, size);
+	len = xclbin_bit_get_string(data, size, offset, 'c', &head_info->date);
+	if (len < 0) {
+		dev_err(dev, "get part name failed");
+		return -EINVAL;
+	}
+	offset += len;
 
-	if (header->design_name[len - 1] != '\0')
-		return -1;
-
-	header->version = strstr(header->design_name, "Version=") + strlen("Version=");
-
-	/* Read 'b' */
-	tmp = xhi_data_and_inc(data, &index, size);
-	if (tmp != 'b')
-		return -1;	/* INVALID_FILE_HEADER_ERROR */
-
-	/* Get Part Name length */
-	len = xhi_data_and_inc(data, &index, size);
-	len = (len << 8) | xhi_data_and_inc(data, &index, size);
-
-	/* allocate space for part name and final null character. */
-	header->part_name = vmalloc(len);
-	if (!header->part_name)
-		return -ENOMEM;
-
-	/* Read in part name */
-	for (i = 0; i < len; i++)
-		header->part_name[i] = xhi_data_and_inc(data, &index, size);
-
-	if (header->part_name[len - 1] != '\0')
-		return -1;
-
-	/* Read 'c' */
-	tmp = xhi_data_and_inc(data, &index, size);
-	if (tmp != 'c')
-		return -1;	/* INVALID_FILE_HEADER_ERROR */
-
-	/* Get date length */
-	len = xhi_data_and_inc(data, &index, size);
-	len = (len << 8) | xhi_data_and_inc(data, &index, size);
-
-	/* allocate space for date and final null character. */
-	header->date = vmalloc(len);
-	if (!header->date)
-		return -ENOMEM;
-
-	/* Read in date name */
-	for (i = 0; i < len; i++)
-		header->date[i] = xhi_data_and_inc(data, &index, size);
-
-	if (header->date[len - 1] != '\0')
-		return -1;
-
-	/* Read 'd' */
-	tmp = xhi_data_and_inc(data, &index, size);
-	if (tmp != 'd')
-		return -1;	/* INVALID_FILE_HEADER_ERROR  */
-
-	/* Get time length */
-	len = xhi_data_and_inc(data, &index, size);
-	len = (len << 8) | xhi_data_and_inc(data, &index, size);
-
-	/* allocate space for time and final null character. */
-	header->time = vmalloc(len);
-	if (!header->time)
-		return -ENOMEM;
-
-	/* Read in time name */
-	for (i = 0; i < len; i++)
-		header->time[i] = xhi_data_and_inc(data, &index, size);
-
-	if (header->time[len - 1] != '\0')
-		return -1;
+	len = xclbin_bit_get_string(data, size, offset, 'd', &head_info->time);
+	if (len < 0) {
+		dev_err(dev, "get part name failed");
+		return -EINVAL;
+	}
+	offset += len;
 
 	/* Read 'e' */
-	tmp = xhi_data_and_inc(data, &index, size);
-	if (tmp != 'e')
-		return -1;	/* INVALID_FILE_HEADER_ERROR */
+	XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size);
+	if (tmp != 'e') {
+		dev_err(dev, "invalid prefix of bitstream length");
+		return -EINVAL;
+	}
 
 	/* Get byte length of bitstream */
-	header->bitstream_length = xhi_data_and_inc(data, &index, size);
-	header->bitstream_length = (header->bitstream_length << 8) |
-		xhi_data_and_inc(data, &index, size);
-	header->bitstream_length = (header->bitstream_length << 8) |
-		xhi_data_and_inc(data, &index, size);
-	header->bitstream_length = (header->bitstream_length << 8) |
-		xhi_data_and_inc(data, &index, size);
+	XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size);
+	head_info->bitstream_length = tmp;
+	XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size);
+	head_info->bitstream_length = (head_info->bitstream_length << 8) | tmp;
+	XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size);
+	head_info->bitstream_length = (head_info->bitstream_length << 8) | tmp;
+	XCLBIN_BIT_NEXT_BYTE(tmp, offset, data, size);
+	head_info->bitstream_length = (head_info->bitstream_length << 8) | tmp;
 
-	header->header_length = index;
+	head_info->header_length = offset;
 
 	return 0;
 }
 EXPORT_SYMBOL_GPL(xrt_xclbin_parse_bitstream_header);
-
-void xrt_xclbin_free_header(struct hw_icap_bit_header *header)
-{
-	vfree(header->design_name);
-	vfree(header->part_name);
-	vfree(header->date);
-	vfree(header->time);
-}
-EXPORT_SYMBOL_GPL(xrt_xclbin_free_header);
 
 struct xrt_clock_desc {
 	char	*clock_ep_name;
@@ -328,7 +285,7 @@ static int xrt_xclbin_add_clock_metadata(struct device *dev,
 	int i;
 	u16 freq;
 	struct clock_freq_topology *clock_topo;
-	int rc = xrt_xclbin_get_section(xclbin, CLOCK_FREQ_TOPOLOGY,
+	int rc = xrt_xclbin_get_section(dev, xclbin, CLOCK_FREQ_TOPOLOGY,
 					(void **)&clock_topo, NULL);
 
 	if (rc)
@@ -362,24 +319,28 @@ static int xrt_xclbin_add_clock_metadata(struct device *dev,
 int xrt_xclbin_get_metadata(struct device *dev, const struct axlf *xclbin, char **dtb)
 {
 	char *md = NULL, *newmd = NULL;
-	u64 len;
-	int rc = xrt_xclbin_get_section(xclbin, PARTITION_METADATA,
+	u64 len, md_len;
+	int rc = xrt_xclbin_get_section(dev, xclbin, PARTITION_METADATA,
 					(void **)&md, &len);
 
 	if (rc)
 		goto done;
 
+	md_len = xrt_md_size(dev, md);
+
 	/* Sanity check the dtb section. */
-	if (xrt_md_size(dev, md) > len) {
+	if (md_len > len) {
 		rc = -EINVAL;
 		goto done;
 	}
 
-	newmd = xrt_md_dup(dev, md);
+	newmd = vzalloc(md_len);
 	if (!newmd) {
-		rc = -EFAULT;
+		rc = -ENOMEM;
 		goto done;
 	}
+	memcpy(newmd, md, md_len);
+
 	/* Convert various needed xclbin sections into dtb. */
 	rc = xrt_xclbin_add_clock_metadata(dev, xclbin, newmd);
 

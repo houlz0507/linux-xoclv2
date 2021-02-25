@@ -262,7 +262,7 @@ static inline int clock_wiz_busy(struct clock *clock, int cycle, int interval)
 static int get_freq(struct clock *clock, u16 *freq)
 {
 #define XCL_INPUT_FREQ 100
-	const u64 input = XCL_INPUT_FREQ;
+	u64 input = XCL_INPUT_FREQ;
 	u32 val;
 	u32 mul0, div0;
 	u32 mul_frac0 = 0;
@@ -317,7 +317,9 @@ static int get_freq(struct clock *clock, u16 *freq)
 		return 0;
 	}
 
-	*freq = (u16)((input * mul0) / div0);
+	input *= mul0;
+	do_div(input, div0);
+	*freq = (u16)input;
 
 	return 0;
 }

@@ -8,5 +8,5 @@ config FPGA_XRT_METADATA
 	select LIBFDT
 	help
 	  This option provides helper functions to parse Xilinx Alveo FPGA
-	  firmware metadata. The metadata is in device tree format and XRT
-	  driver uses it to discover HW subsystems behind PCIe BAR.
+	  firmware metadata. The metadata is in device tree format and the
+	  XRT driver uses it to discover the HW subsystems behind PCIe BAR.

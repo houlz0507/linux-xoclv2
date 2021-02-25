@@ -369,12 +369,13 @@ int xmgmt_process_xclbin(struct platform_device *pdev,
 		goto failed;
 	}
 
-	xrt_md_get_intf_uuids(DEV(pdev), dtb, &arg.uuid_num, NULL);
-	if (arg.uuid_num == 0) {
+	rc = xrt_md_get_interface_uuids(DEV(pdev), dtb, 0, NULL);
+	if (arg.uuid_num < 0) {
 		xrt_err(pdev, "failed to get intf uuid");
 		rc = -EINVAL;
 		goto failed;
 	}
+	arg.uuid_num = rc;
 	arg.uuids = vzalloc(sizeof(uuid_t) * arg.uuid_num);
 	if (!arg.uuids) {
 		rc = -ENOMEM;
@@ -382,7 +383,7 @@ int xmgmt_process_xclbin(struct platform_device *pdev,
 	}
 	arg.pdev = pdev;
 
-	xrt_md_get_intf_uuids(DEV(pdev), dtb, &arg.uuid_num, arg.uuids);
+	xrt_md_get_interface_uuids(DEV(pdev), dtb, arg.uuid_num, arg.uuids);
 
 	/* if this is not base firmware, search for a compatible region */
 	if (kind != XMGMT_BLP) {

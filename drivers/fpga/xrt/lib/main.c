@@ -9,6 +9,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/vmalloc.h>
 #include "xleaf.h"
 #include "xroot.h"
 #include "main.h"

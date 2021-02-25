@@ -5,7 +5,7 @@
 
 config FPGA_XRT_XMGMT
 	tristate "Xilinx Alveo Management Driver"
-	depends on HWMON && PCI && FPGA_XRT_LIB
+	depends on FPGA_XRT_LIB
 	select FPGA_XRT_METADATA
 	select FPGA_BRIDGE
 	select FPGA_REGION
