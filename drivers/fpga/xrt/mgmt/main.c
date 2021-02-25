@@ -46,9 +46,9 @@ char *xmgmt_get_vbnv(struct platform_device *pdev)
 	int i;
 
 	if (xmm->firmware_plp)
-		vbnv = xmm->firmware_plp->m_header.m_platformVBNV;
+		vbnv = xmm->firmware_plp->m_header.m_platform_vbnv;
 	else if (xmm->firmware_blp)
-		vbnv = xmm->firmware_blp->m_header.m_platformVBNV;
+		vbnv = xmm->firmware_blp->m_header.m_platform_vbnv;
 	else
 		return NULL;
 
@@ -597,10 +597,10 @@ static int bitstream_axlf_ioctl(struct xmgmt_main *xmm, const void __user *arg)
 		return -EFAULT;
 	if (copy_from_user((void *)&xclbin_obj, ioc_obj.xclbin, sizeof(xclbin_obj)))
 		return -EFAULT;
-	if (memcmp(xclbin_obj.m_magic, XCLBIN_VERSION2, sizeof(XCLBIN_VERSION2)))
+	if (memcmp(xclbin_obj.magic, XCLBIN_VERSION2, sizeof(XCLBIN_VERSION2)))
 		return -EINVAL;
 
-	copy_buffer_size = xclbin_obj.m_header.m_length;
+	copy_buffer_size = xclbin_obj.header.length;
 	if (copy_buffer_size > XCLBIN_MAX_SIZE)
 		return -EINVAL;
 	copy_buffer = vmalloc(copy_buffer_size);
