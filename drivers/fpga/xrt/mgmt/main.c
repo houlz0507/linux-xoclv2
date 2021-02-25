@@ -46,9 +46,9 @@ char *xmgmt_get_vbnv(struct platform_device *pdev)
 	int i;
 
 	if (xmm->firmware_plp)
-		vbnv = xmm->firmware_plp->m_header.m_platform_vbnv;
+		vbnv = xmm->firmware_plp->header.platform_vbnv;
 	else if (xmm->firmware_blp)
-		vbnv = xmm->firmware_blp->m_header.m_platform_vbnv;
+		vbnv = xmm->firmware_blp->header.platform_vbnv;
 	else
 		return NULL;
 
@@ -192,14 +192,14 @@ static ssize_t ulp_image_write(struct file *filp, struct kobject *kobj,
 			xmm->firmware_ulp = NULL;
 		}
 		xclbin = (struct axlf *)buffer;
-		xmm->firmware_ulp = vmalloc(xclbin->m_header.m_length);
+		xmm->firmware_ulp = vmalloc(xclbin->header.length);
 		if (!xmm->firmware_ulp)
 			return -ENOMEM;
 	} else {
 		xclbin = xmm->firmware_ulp;
 	}
 
-	len = xclbin->m_header.m_length;
+	len = xclbin->header.length;
 	if (off + count >= len && off < len) {
 		memcpy(xmm->firmware_ulp + off, buffer, len - off);
 		xmgmt_process_xclbin(xmm->pdev, xmm->fmgr, xmm->firmware_ulp, XMGMT_ULP);
@@ -316,7 +316,7 @@ static bool is_valid_firmware(struct platform_device *pdev,
 			      const struct axlf *xclbin, size_t fw_len)
 {
 	const char *fw_buf = (const char *)xclbin;
-	size_t axlflen = xclbin->m_header.m_length;
+	size_t axlflen = xclbin->header.length;
 	const char *fw_uuid;
 	char dev_uuid[80];
 	int err;
@@ -399,7 +399,7 @@ static int xmgmt_create_blp(struct xmgmt_main *xmm)
 			xmm->blp_intf_uuid_num = rc;
 			xmm->blp_intf_uuids = vzalloc(sizeof(uuid_t) * xmm->blp_intf_uuid_num);
 			xrt_md_get_interface_uuids(&pdev->dev, dtb, xmm->blp_intf_uuid_num,
-					      xmm->blp_intf_uuids);
+						   xmm->blp_intf_uuids);
 		}
 	}
 
