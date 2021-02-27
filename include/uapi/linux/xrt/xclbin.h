@@ -15,8 +15,6 @@
 #else
   #if defined(__KERNEL__)
     #include <linux/types.h>
-    #include <linux/uuid.h>
-    #include <linux/version.h>
   #elif defined(__cplusplus)
     #include <cstdlib>
     #include <cstdint>
@@ -36,41 +34,41 @@ extern "C" {
 /**
  * DOC: Container format for Xilinx FPGA images
  * The container stores bitstreams, metadata and firmware images.
- * xclbin/xsabin is ELF-like binary container format. It is structured
+ * xclbin/xsabin is an ELF-like binary container format. It is a structured
  * series of sections. There is a file header followed by several section
  * headers which is followed by sections. A section header points to an
  * actual section. There is an optional signature at the end. The
  * following figure illustrates a typical xclbin:
  *
  *     +---------------------+
- *     |		     |
- *     |       HEADER	     |
+ *     |                     |
+ *     |       HEADER        |
  *     +---------------------+
  *     |   SECTION  HEADER   |
- *     |		     |
+ *     |                     |
  *     +---------------------+
- *     |	 ...	     |
- *     |		     |
+ *     |        ...          |
+ *     |                     |
  *     +---------------------+
  *     |   SECTION  HEADER   |
- *     |		     |
+ *     |                     |
  *     +---------------------+
- *     |       SECTION	     |
- *     |		     |
+ *     |       SECTION       |
+ *     |                     |
  *     +---------------------+
- *     |	 ...	     |
- *     |		     |
+ *     |         ...         |
+ *     |                     |
  *     +---------------------+
- *     |       SECTION	     |
- *     |		     |
+ *     |       SECTION       |
+ *     |                     |
  *     +---------------------+
- *     |      SIGNATURE	     |
+ *     |      SIGNATURE      |
  *     |      (OPTIONAL)     |
  *     +---------------------+
  */
 
 enum XCLBIN_MODE {
-	XCLBIN_FLAT,
+	XCLBIN_FLAT = 0,
 	XCLBIN_PR,
 	XCLBIN_TANDEM_STAGE2,
 	XCLBIN_TANDEM_STAGE2_WITH_PR,
@@ -111,7 +109,7 @@ enum axlf_section_kind {
 };
 
 enum MEM_TYPE {
-	MEM_DDR3,
+	MEM_DDR3 = 0,
 	MEM_DDR4,
 	MEM_DRAM,
 	MEM_STREAMING,
@@ -135,9 +133,9 @@ enum IP_TYPE {
 struct axlf_section_header {
 	uint32_t section_kind;	    /* Section type */
 	char section_name[16];	    /* Examples: "stage2", "clear1", */
-					    /* "clear2", "ocl1", "ocl2, */
-					    /* "ublaze", "sched" */
-	uint64_t section_offset;	    /* File offset of section data */
+				    /* "clear2", "ocl1", "ocl2, */
+				    /* "ublaze", "sched" */
+	uint64_t section_offset;    /* File offset of section data */
 	uint64_t section_size;	    /* Size of section data */
 };
 
@@ -145,7 +143,7 @@ struct axlf_header {
 	uint64_t length;		    /* Total size of the xclbin file */
 	uint64_t time_stamp;		    /* Number of seconds since epoch */
 					    /* when xclbin was created */
-	uint64_t feature_rom_timestamp;    /* TimeSinceEpoch of the featureRom */
+	uint64_t feature_rom_timestamp;     /* TimeSinceEpoch of the featureRom */
 	uint16_t version_patch;	    /* Patch Version */
 	uint8_t version_major;	    /* Major Version - Version: 2.1.0*/
 	uint8_t version_minor;	    /* Minor Version */
@@ -164,7 +162,7 @@ struct axlf_header {
 	union {
 		char next_axlf[16];		/* Name of next xclbin file */
 						/* in the daisy chain */
-		uuid_t uuid;			/* uuid of this xclbin*/
+		unsigned char uuid[16];		/* uuid of this xclbin*/
 	};
 	char debug_bin[16];			/* Name of binary with debug */
 						/* information */
@@ -214,12 +212,12 @@ struct mem_topology {
 };
 
 /****	CONNECTIVITY SECTION ****/
-/* Connectivity of each argument of Kernel. It will be in terms of argument
- * index associated. For associating kernel instances with arguments and
- * banks, start at the connectivity section. Using the ip_layout_index
- * access the ip_data.name. Now we can associate this kernel instance
- * with its original kernel name and get the connectivity as well. This
- * enables us to form related groups of kernel instances.
+/* Connectivity of each argument of CU(Compute Unit). It will be in terms
+ * of argument index associated. For associating CU instances with arguments
+ * and banks, start at the connectivity section. Using the ip_layout_index
+ * access the ip_data.name. Now we can associate this CU instance with its
+ * original CU name and get the connectivity as well. This enables us to form
+ * related groups of CU instances.
  */
 
 struct connection {
@@ -245,10 +243,10 @@ struct connectivity {
 
 enum IP_CONTROL {
 	AP_CTRL_HS = 0,
-	AP_CTRL_CHAIN = 1,
-	AP_CTRL_NONE = 2,
-	AP_CTRL_ME = 3,
-	ACCEL_ADAPTER = 4
+	AP_CTRL_CHAIN,
+	AP_CTRL_NONE,
+	AP_CTRL_ME,
+	ACCEL_ADAPTER
 };
 
 #define IP_CONTROL_MASK	 0xFF00
@@ -317,7 +315,7 @@ struct debug_ip_layout {
 };
 
 /* Supported clock frequency types */
-enum CLOCK_TYPE {
+enum XCLBIN_CLOCK_TYPE {
 	CT_UNUSED = 0,			   /* Initialized value */
 	CT_DATA	  = 1,			   /* Data clock */
 	CT_KERNEL = 2,			   /* Kernel clock */

@@ -1,7 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Header file for Xilinx Runtime (XRT) driver
- *
  * Copyright (C) 2020-2021 Xilinx, Inc.
  *
  * Authors:
@@ -102,7 +100,7 @@
 #define XRT_MD_NODE_DDR_SRSR "drv_ep_ddr_srsr"
 #define XRT_MD_NODE_FLASH_VSEC "drv_ep_card_flash_program_00"
 #define XRT_MD_NODE_GOLDEN_VER "drv_ep_golden_ver_00"
-#define XRT_MD_NODE_MAILBOX_VSEC "ep_mailbox_vsec_00"
+#define XRT_MD_NODE_MAILBOX_VSEC "drv_ep_mailbox_vsec_00"
 #define XRT_MD_NODE_MGMT_MAIN "drv_ep_mgmt_main_00"
 #define XRT_MD_NODE_PLAT_INFO "drv_ep_platform_info_mgmt_00"
 #define XRT_MD_NODE_PARTITION_INFO_BLP "partition_info_0"
@@ -168,7 +166,7 @@ char *xrt_md_dup(struct device *dev, const char *blob);
 int xrt_md_add_endpoint(struct device *dev, char *blob,
 			struct xrt_md_endpoint *ep);
 int xrt_md_del_endpoint(struct device *dev, char *blob, const char *ep_name,
-			char *regmap_name);
+			const char *regmap_name);
 int xrt_md_get_prop(struct device *dev, const char *blob, const char *ep_name,
 		    const char *regmap_name, const char *prop,
 		    const void **val, int *size);

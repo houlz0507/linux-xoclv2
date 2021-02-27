@@ -22,6 +22,7 @@
 #include "main-impl.h"
 
 #define XMGMT_MAIN "xmgmt_main"
+#define XMGMT_SUPP_XCLBIN_MAJOR 2
 
 struct xmgmt_main {
 	struct platform_device *pdev;
@@ -67,7 +68,7 @@ static int get_dev_uuid(struct platform_device *pdev, char *uuidstr, size_t len)
 {
 	char uuid[16];
 	struct platform_device *devctl_leaf;
-	struct xrt_devctl_ioctl_rw devctl_arg = { 0 };
+	struct xrt_devctl_rw devctl_arg = { 0 };
 	int err, i, count;
 
 	devctl_leaf = xleaf_get_leaf_by_epname(pdev, XRT_MD_NODE_BLP_ROM);
@@ -80,7 +81,7 @@ static int get_dev_uuid(struct platform_device *pdev, char *uuidstr, size_t len)
 	devctl_arg.xgir_buf = uuid;
 	devctl_arg.xgir_len = sizeof(uuid);
 	devctl_arg.xgir_offset = 0;
-	err = xleaf_ioctl(devctl_leaf, XRT_DEVCTL_READ, &devctl_arg);
+	err = xleaf_call(devctl_leaf, XRT_DEVCTL_READ, &devctl_arg);
 	xleaf_put_leaf(pdev, devctl_leaf);
 	if (err) {
 		xrt_err(pdev, "can not get uuid: %d", err);
@@ -335,6 +336,11 @@ static bool is_valid_firmware(struct platform_device *pdev,
 		return false;
 	}
 
+	if (xclbin->header.version_major != XMGMT_SUPP_XCLBIN_MAJOR) {
+		xrt_err(pdev, "firmware is not supported");
+		return false;
+	}
+
 	fw_uuid = get_uuid_from_firmware(pdev, xclbin);
 	if (!fw_uuid || strncmp(fw_uuid, dev_uuid, sizeof(dev_uuid)) != 0) {
 		xrt_err(pdev, "bad fw UUID: %s, expect: %s",
@@ -501,7 +507,7 @@ static int xmgmt_main_remove(struct platform_device *pdev)
 }
 
 static int
-xmgmt_main_leaf_ioctl(struct platform_device *pdev, u32 cmd, void *arg)
+xmgmt_mainleaf_call(struct platform_device *pdev, u32 cmd, void *arg)
 {
 	struct xmgmt_main *xmm = platform_get_drvdata(pdev);
 	int ret = 0;
@@ -511,8 +517,8 @@ xmgmt_main_leaf_ioctl(struct platform_device *pdev, u32 cmd, void *arg)
 		xmgmt_main_event_cb(pdev, arg);
 		break;
 	case XRT_MGMT_MAIN_GET_AXLF_SECTION: {
-		struct xrt_mgmt_main_ioctl_get_axlf_section *get =
-			(struct xrt_mgmt_main_ioctl_get_axlf_section *)arg;
+		struct xrt_mgmt_main_get_axlf_section *get =
+			(struct xrt_mgmt_main_get_axlf_section *)arg;
 		const struct axlf *firmware = xmgmt_get_axlf_firmware(xmm, get->xmmigas_axlf_kind);
 
 		if (!firmware) {
@@ -603,6 +609,9 @@ static int bitstream_axlf_ioctl(struct xmgmt_main *xmm, const void __user *arg)
 	copy_buffer_size = xclbin_obj.header.length;
 	if (copy_buffer_size > XCLBIN_MAX_SIZE)
 		return -EINVAL;
+	if (xclbin_obj.header.version_major != XMGMT_SUPP_XCLBIN_MAJOR)
+		return -EINVAL;
+
 	copy_buffer = vmalloc(copy_buffer_size);
 	if (!copy_buffer)
 		return -ENOMEM;
@@ -656,7 +665,7 @@ static struct xrt_subdev_endpoints xrt_mgmt_main_endpoints[] = {
 
 static struct xrt_subdev_drvdata xmgmt_main_data = {
 	.xsd_dev_ops = {
-		.xsd_ioctl = xmgmt_main_leaf_ioctl,
+		.xsd_leaf_call = xmgmt_mainleaf_call,
 	},
 	.xsd_file_ops = {
 		.xsf_ops = {

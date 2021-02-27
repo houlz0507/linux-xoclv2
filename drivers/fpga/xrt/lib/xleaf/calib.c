@@ -165,7 +165,7 @@ failed:
 }
 
 static int
-xrt_calib_leaf_ioctl(struct platform_device *pdev, u32 cmd, void *arg)
+xrt_calib_leaf_call(struct platform_device *pdev, u32 cmd, void *arg)
 {
 	struct calib *calib = platform_get_drvdata(pdev);
 	int ret = 0;
@@ -199,7 +199,7 @@ static struct xrt_subdev_endpoints xrt_calib_endpoints[] = {
 
 static struct xrt_subdev_drvdata xrt_calib_data = {
 	.xsd_dev_ops = {
-		.xsd_ioctl = xrt_calib_leaf_ioctl,
+		.xsd_leaf_call = xrt_calib_leaf_call,
 	},
 };
 
