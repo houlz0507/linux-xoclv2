@@ -11,7 +11,7 @@ FULL_DTC_PATH=$(srctree)/scripts/dtc/libfdt
 obj-$(CONFIG_FPGA_XRT_LIB) += xrt-lib.o
 
 xrt-lib-objs :=			\
-	main.o			\
+	lib-drv.o		\
 	xroot.o			\
 	xclbin.o		\
 	subdev.o		\

@@ -135,9 +135,10 @@ struct axlf_section_header {
 	char section_name[16];	    /* Examples: "stage2", "clear1", */
 				    /* "clear2", "ocl1", "ocl2, */
 				    /* "ublaze", "sched" */
+	char rsvd[4];
 	uint64_t section_offset;    /* File offset of section data */
 	uint64_t section_size;	    /* Size of section data */
-};
+} __packed;
 
 struct axlf_header {
 	uint64_t length;		    /* Total size of the xclbin file */
@@ -167,7 +168,8 @@ struct axlf_header {
 	char debug_bin[16];			/* Name of binary with debug */
 						/* information */
 	uint32_t num_sections;		/* Number of section headers */
-};
+	char rsvd[4];
+} __packed;
 
 struct axlf {
 	char magic[8];			/* Should be "xclbin2\0"  */
@@ -182,18 +184,19 @@ struct axlf {
 	struct axlf_header header;		/* Inline header */
 	struct axlf_section_header sections[1];   /* One or more section */
 						    /* headers follow */
-};
+} __packed;
 
 /* bitstream information */
 struct xlnx_bitstream {
 	uint8_t freq[8];
 	char bits[1];
-};
+} __packed;
 
 /****	MEMORY TOPOLOGY SECTION ****/
 struct mem_data {
 	uint8_t type; /* enum corresponding to mem_type. */
 	uint8_t used; /* if 0 this bank is not present */
+	uint8_t rsvd[6];
 	union {
 		uint64_t size; /* if mem_type DDR, then size in KB; */
 		uint64_t route_id; /* if streaming then "route_id" */
@@ -204,12 +207,12 @@ struct mem_data {
 	};
 	unsigned char tag[16]; /* DDR: BANK0,1,2,3, has to be null */
 			/* terminated; if streaming then stream0, 1 etc */
-};
+} __packed;
 
 struct mem_topology {
 	int32_t count; /* Number of mem_data */
 	struct mem_data mem_data[1]; /* Should be sorted on mem_type */
-};
+} __packed;
 
 /****	CONNECTIVITY SECTION ****/
 /* Connectivity of each argument of CU(Compute Unit). It will be in terms
@@ -227,12 +230,12 @@ struct connection {
 			   /* ip_layout.ip_data[index].type == IP_KERNEL */
 	int32_t mem_data_index; /* index of the mem_data . Flag error is */
 				/* used false. */
-};
+} __packed;
 
 struct connectivity {
 	int32_t count;
 	struct connection connection[1];
-};
+} __packed;
 
 /****	IP_LAYOUT SECTION ****/
 
@@ -272,13 +275,13 @@ struct ip_data {
 	uint64_t base_address;
 	uint8_t name[64]; /* eg Kernel name corresponding to KERNEL */
 			    /* instance, can embed CU name in future. */
-};
+} __packed;
 
 struct ip_layout {
 	int32_t count;
 	struct ip_data ip_data[1]; /* All the ip_data needs to be sorted */
 				     /* by base_address. */
-};
+} __packed;
 
 /*** Debug IP section layout ****/
 enum DEBUG_IP_TYPE {
@@ -307,12 +310,12 @@ struct debug_ip_data {
 	uint8_t reserved[2];
 	uint64_t base_address;
 	char	name[128];
-};
+} __packed;
 
 struct debug_ip_layout {
 	uint16_t count;
 	struct debug_ip_data debug_ip_data[1];
-};
+} __packed;
 
 /* Supported clock frequency types */
 enum XCLBIN_CLOCK_TYPE {
@@ -328,13 +331,13 @@ struct clock_freq {
 	uint8_t type;			   /* Clock type (enum CLOCK_TYPE) */
 	uint8_t unused[5];		   /* Not used - padding */
 	char name[128];			   /* Clock Name */
-};
+} __packed;
 
 /* Clock frequency section */
 struct clock_freq_topology {
 	int16_t count;		   /* Number of entries */
 	struct clock_freq clock_freq[1]; /* Clock array */
-};
+} __packed;
 
 /* Supported MCS file types */
 enum MCS_TYPE {
@@ -350,14 +353,14 @@ struct mcs_chunk {
 	uint64_t offset;		   /* data offset from the start of */
 					   /* the section */
 	uint64_t size;		   /* data size */
-};
+} __packed;
 
 /* MCS data section */
 struct mcs {
 	int8_t count;			   /* Number of chunks */
 	int8_t unused[7];		   /* padding */
 	struct mcs_chunk chunk[1];	   /* MCS chunks followed by data */
-};
+} __packed;
 
 /* bmc data section */
 struct bmc {
@@ -371,7 +374,7 @@ struct bmc {
 	char md5value[33];		   /* MD5 Expected Value */
 				/* (e.g., 56027182079c0bd621761b7dab5a27ca)*/
 	char padding[7];		   /* Padding */
-};
+} __packed;
 
 /* soft kernel data section, used by classic driver */
 struct soft_kernel {
@@ -391,7 +394,7 @@ struct soft_kernel {
 	uint32_t num_instances;  /* Number of instances */
 	uint8_t padding[36];	   /* Reserved for future use */
 	uint8_t reserved_ext[16];   /* Reserved for future extended data */
-};
+} __packed;
 
 enum CHECKSUM_TYPE {
 	CST_UNKNOWN = 0,
