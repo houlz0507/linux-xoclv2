@@ -90,8 +90,8 @@ static void xmgmt_destroy_bridge(struct fpga_bridge *br)
 static struct fpga_bridge *xmgmt_create_bridge(struct platform_device *pdev,
 					       char *dtb)
 {
-	struct xmgmt_bridge *br_data;
 	struct fpga_bridge *br = NULL;
+	struct xmgmt_bridge *br_data;
 	const char *gate;
 	int rc;
 
@@ -233,9 +233,9 @@ static void xmgmt_region_cleanup(struct fpga_region *region)
 {
 	struct xmgmt_region *r_data = region->priv, *pdata, *temp;
 	struct platform_device *pdev = r_data->pdev;
+	struct xmgmt_region_match_arg arg = { 0 };
 	struct fpga_region *match_region = NULL;
 	struct device *start_dev = NULL;
-	struct xmgmt_region_match_arg arg = { 0 };
 	LIST_HEAD(free_list);
 	uuid_t compat_uuid;
 
@@ -274,8 +274,8 @@ static void xmgmt_region_cleanup(struct fpga_region *region)
 
 void xmgmt_region_cleanup_all(struct platform_device *pdev)
 {
-	struct fpga_region *base_region;
 	struct xmgmt_region_match_arg arg = { 0 };
+	struct fpga_region *base_region;
 
 	arg.pdev = pdev;
 
@@ -293,10 +293,10 @@ void xmgmt_region_cleanup_all(struct platform_device *pdev)
  */
 static int xmgmt_region_program(struct fpga_region *region, const void *xclbin, char *dtb)
 {
-	struct xmgmt_region *r_data = region->priv;
 	struct platform_device *pdev = r_data->pdev;
-	struct fpga_image_info *info;
+	struct xmgmt_region *r_data = region->priv;
 	const struct axlf *xclbin_obj = xclbin;
+	struct fpga_image_info *info;
 	int rc;
 
 	info = fpga_image_info_alloc(&pdev->dev);
@@ -462,17 +462,19 @@ int xmgmt_process_xclbin(struct platform_device *pdev,
 			 region->compat_id->id_l, region->compat_id->id_h);
 	}
 
-failed:
 	if (compat_region)
 		put_device(&compat_region->dev);
+	vfree(dtb);
+	return 0;
 
-	if (rc) {
-		if (compat_region)
-			xmgmt_region_cleanup(compat_region);
+failed:
+	if (compat_region) {
+		put_device(&compat_region->dev);
+		xmgmt_region_cleanup(compat_region);
+	} else {
+		xmgmt_region_cleanup_all(pdev);
 	}
 
-	if (dtb)
-		vfree(dtb);
-
+	vfree(dtb);
 	return rc;
 }
