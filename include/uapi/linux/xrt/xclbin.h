@@ -8,23 +8,23 @@
 #ifndef _XCLBIN_H_
 #define _XCLBIN_H_
 
-#ifdef _WIN32
-  #include <cstdint>
-  #include <algorithm>
-  #include "windows/uuid.h"
+#if defined(__KERNEL__)
+
+#include <linux/types.h>
+
+#elif defined(__cplusplus)
+
+#include <cstdlib>
+#include <cstdint>
+#include <algorithm>
+#include <uuid/uuid.h>
+
 #else
-  #if defined(__KERNEL__)
-    #include <linux/types.h>
-  #elif defined(__cplusplus)
-    #include <cstdlib>
-    #include <cstdint>
-    #include <algorithm>
-    #include <uuid/uuid.h>
-  #else
-    #include <stdlib.h>
-    #include <stdint.h>
-    #include <uuid/uuid.h>
-  #endif
+
+#include <stdlib.h>
+#include <stdint.h>
+#include <uuid/uuid.h>
+
 #endif
 
 #ifdef __cplusplus

@@ -77,10 +77,10 @@ static int get_dev_uuid(struct platform_device *pdev, char *uuidstr, size_t len)
 		return -EINVAL;
 	}
 
-	devctl_arg.xgir_id = XRT_DEVCTL_ROM_UUID;
-	devctl_arg.xgir_buf = uuid;
-	devctl_arg.xgir_len = sizeof(uuid);
-	devctl_arg.xgir_offset = 0;
+	devctl_arg.id = XRT_DEVCTL_ROM_UUID;
+	devctl_arg.buf = uuid;
+	devctl_arg.len = sizeof(uuid);
+	devctl_arg.offset = 0;
 	err = xleaf_call(devctl_leaf, XRT_DEVCTL_READ, &devctl_arg);
 	xleaf_put_leaf(pdev, devctl_leaf);
 	if (err) {

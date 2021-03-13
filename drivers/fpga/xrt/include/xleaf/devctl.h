@@ -16,26 +16,25 @@
  */
 enum xrt_devctl_leaf_cmd {
 	XRT_DEVCTL_READ = XRT_XLEAF_CUSTOM_BASE, /* See comments in xleaf.h */
-	XRT_DEVCTL_WRITE,
 };
 
 enum xrt_devctl_id {
-	XRT_DEVCTL_ROM_UUID,
+	XRT_DEVCTL_ROM_UUID = 0,
 	XRT_DEVCTL_DDR_CALIB,
 	XRT_DEVCTL_GOLDEN_VER,
 	XRT_DEVCTL_MAX
 };
 
 struct xrt_devctl_rw {
-	u32	xgir_id;
-	void	*xgir_buf;
-	u32	xgir_len;
-	u32	xgir_offset;
+	u32	id;
+	void	*buf;
+	u32	len;
+	u32	offset;
 };
 
 struct xrt_devctl_intf_uuid {
-	u32	xgir_uuid_num;
-	uuid_t	*xgir_uuids;
+	u32	uuid_num;
+	uuid_t	*uuids;
 };
 
 #endif	/* _XRT_DEVCTL_H_ */

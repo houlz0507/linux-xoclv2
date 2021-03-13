@@ -53,9 +53,9 @@ static int xmgmt_br_enable_set(struct fpga_bridge *bridge, bool enable)
 	}
 
 	if (enable)
-		rc = xleaf_call(axigate_leaf, XRT_AXIGATE_FREE, NULL);
+		rc = xleaf_call(axigate_leaf, XRT_AXIGATE_OPEN, NULL);
 	else
-		rc = xleaf_call(axigate_leaf, XRT_AXIGATE_FREEZE, NULL);
+		rc = xleaf_call(axigate_leaf, XRT_AXIGATE_CLOSE, NULL);
 
 	if (rc) {
 		xrt_err(br_data->pdev, "failed to %s gate %s, rc %d",
@@ -293,11 +293,14 @@ void xmgmt_region_cleanup_all(struct platform_device *pdev)
  */
 static int xmgmt_region_program(struct fpga_region *region, const void *xclbin, char *dtb)
 {
-	struct platform_device *pdev = r_data->pdev;
-	struct xmgmt_region *r_data = region->priv;
 	const struct axlf *xclbin_obj = xclbin;
 	struct fpga_image_info *info;
+	struct platform_device *pdev;
+	struct xmgmt_region *r_data;
 	int rc;
+
+	r_data = region->priv;
+	pdev = r_data->pdev;
 
 	info = fpga_image_info_alloc(&pdev->dev);
 	if (!info)

@@ -7,6 +7,7 @@ config FPGA_XRT_LIB
 	tristate "XRT Alveo Driver Library"
 	depends on HWMON && PCI && HAS_IOMEM
 	select FPGA_XRT_METADATA
+	select REGMAP_MMIO
 	help
 	  Select this option to enable Xilinx XRT Alveo driver library. This
 	  library is core infrastructure of XRT Alveo FPGA drivers which

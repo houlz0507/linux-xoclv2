@@ -24,7 +24,7 @@ xrt-lib-objs :=			\
 	xleaf/clock.o		\
 	xleaf/clkfreq.o		\
 	xleaf/ucs.o		\
-	xleaf/calib.o		\
+	xleaf/ddr_calibration.o
 
 ccflags-y := -I$(FULL_XRT_PATH)/include	 \
 	-I$(FULL_DTC_PATH)
