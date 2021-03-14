@@ -15,7 +15,7 @@
 #include "xleaf.h"
 #include "xleaf/axigate.h"
 #include "xclbin-helper.h"
-#include "main-impl.h"
+#include "xmgnt.h"
 
 struct xmgmt_bridge {
 	struct platform_device *pdev;
