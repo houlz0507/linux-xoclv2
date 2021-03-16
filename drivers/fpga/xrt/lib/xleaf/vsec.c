@@ -288,7 +288,7 @@ static int xrt_vsec_mapio(struct xrt_vsec *vsec)
 		xrt_err(vsec->pdev, "Map failed");
 		return -EIO;
 	}
-		
+
 	vsec->regmap = devm_regmap_init_mmio(&vsec->pdev->dev, base, &vsec_regmap_config);
 	if (IS_ERR(vsec->regmap)) {
 		xrt_err(vsec->pdev, "regmap %pR failed", res);

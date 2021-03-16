@@ -90,10 +90,6 @@ static int ucs_enable(struct xrt_ucs *ucs)
 static int
 xrt_ucs_leaf_call(struct platform_device *pdev, u32 cmd, void *arg)
 {
-	struct xrt_ucs *ucs;
-
-	ucs = platform_get_drvdata(pdev);
-
 	switch (cmd) {
 	case XRT_XLEAF_EVENT:
 		xrt_ucs_event_cb(pdev, arg);
@@ -136,7 +132,6 @@ static int ucs_probe(struct platform_device *pdev)
 	ucs_enable(ucs);
 
 	return 0;
-
 }
 
 static struct xrt_subdev_endpoints xrt_ucs_endpoints[] = {

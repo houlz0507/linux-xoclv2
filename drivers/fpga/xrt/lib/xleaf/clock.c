@@ -284,7 +284,7 @@ static int get_freq(struct clock *clock, u16 *freq)
 		CLOCK_ERR(clock, "read status failed %d", ret);
 		return ret;
 	}
-	
+
 	if ((val & 0x1) == 0) {
 		CLOCK_ERR(clock, "clockwiz is busy %x", val);
 		*freq = 0;
@@ -351,7 +351,6 @@ static int set_freq(struct clock *clock, u16 freq)
 	u32 idx = 0;
 	u32 val = 0;
 	u32 config;
-
 
 	mutex_lock(&clock->clock_lock);
 	idx = find_matching_freq_config(freq, frequency_table,

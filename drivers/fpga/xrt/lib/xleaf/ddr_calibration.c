@@ -88,7 +88,8 @@ static int calib_calibration(struct calib *calib)
 		return -ETIMEDOUT;
 	}
 
-	xrt_info(calib->pdev, "took %dms", (XRT_CALIB_READ_RETRIES - times) * XRT_CALIB_READ_INTERVAL);
+	xrt_info(calib->pdev, "took %dms", (XRT_CALIB_READ_RETRIES - times) *
+		 XRT_CALIB_READ_INTERVAL);
 	return 0;
 }
 

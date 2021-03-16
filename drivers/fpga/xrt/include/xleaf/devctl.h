@@ -26,10 +26,10 @@ enum xrt_devctl_id {
 };
 
 struct xrt_devctl_rw {
-	u32	id;
-	void	*buf;
-	u32	len;
-	u32	offset;
+	u32	xdr_id;
+	void	*xdr_buf;
+	u32	xdr_len;
+	u32	xdr_offset;
 };
 
 struct xrt_devctl_intf_uuid {

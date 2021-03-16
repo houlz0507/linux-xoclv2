@@ -82,10 +82,10 @@ static int get_dev_uuid(struct platform_device *pdev, char *uuidstr, size_t len)
 		return -EINVAL;
 	}
 
-	devctl_arg.id = XRT_DEVCTL_ROM_UUID;
-	devctl_arg.buf = uuid_buf;
-	devctl_arg.len = sizeof(uuid_buf);
-	devctl_arg.offset = 0;
+	devctl_arg.xdr_id = XRT_DEVCTL_ROM_UUID;
+	devctl_arg.xdr_buf = uuid_buf;
+	devctl_arg.xdr_len = sizeof(uuid_buf);
+	devctl_arg.xdr_offset = 0;
 	err = xleaf_call(devctl_leaf, XRT_DEVCTL_READ, &devctl_arg);
 	xleaf_put_leaf(pdev, devctl_leaf);
 	if (err) {
@@ -356,7 +356,8 @@ static int xmgmt_create_blp(struct xmgmt_main *xmm)
 		rc = xrt_md_get_interface_uuids(&pdev->dev, dtb, 0, NULL);
 		if (rc > 0) {
 			xmm->blp_interface_uuid_num = rc;
-			xmm->blp_interface_uuids = vzalloc(sizeof(uuid_t) * xmm->blp_interface_uuid_num);
+			xmm->blp_interface_uuids = vzalloc(sizeof(uuid_t) *
+				xmm->blp_interface_uuid_num);
 			if (!xmm->blp_interface_uuids) {
 				rc = -ENOMEM;
 				goto failed;

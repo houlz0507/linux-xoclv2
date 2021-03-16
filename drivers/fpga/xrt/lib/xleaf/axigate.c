@@ -246,7 +246,7 @@ xrt_axigate_leaf_call(struct platform_device *pdev, u32 cmd, void *arg)
 		return -EINVAL;
 	}
 
-	return 0;
+	return ret;
 }
 
 static int xrt_axigate_probe(struct platform_device *pdev)

@@ -69,24 +69,25 @@ xrt_devctl_leaf_call(struct platform_device *pdev, u32 cmd, void *arg)
 	case XRT_DEVCTL_READ: {
 		struct xrt_devctl_rw *rw_arg = arg;
 
-		if (rw_arg->len & 0x3) {
-			xrt_err(pdev, "invalid len %d", rw_arg->len);
+		if (rw_arg->xdr_len & 0x3) {
+			xrt_err(pdev, "invalid len %d", rw_arg->xdr_len);
 			return -EINVAL;
 		}
 
-		if (rw_arg->id >= XRT_DEVCTL_MAX) {
-			xrt_err(pdev, "invalid id %d", rw_arg->id);
+		if (rw_arg->xdr_id >= XRT_DEVCTL_MAX) {
+			xrt_err(pdev, "invalid id %d", rw_arg->xdr_id);
 			return -EINVAL;
 		}
 
-		if (!devctl->regmap[rw_arg->id]) {
+		if (!devctl->regmap[rw_arg->xdr_id]) {
 			xrt_err(pdev, "io not found, id %d",
-				rw_arg->id);
+				rw_arg->xdr_id);
 			return -EINVAL;
 		}
 
-		ret = regmap_bulk_read(devctl->regmap[rw_arg->id], rw_arg->offset,
-				       rw_arg->buf, rw_arg->len / devctl_regmap_config.reg_stride);
+		ret = regmap_bulk_read(devctl->regmap[rw_arg->xdr_id], rw_arg->xdr_offset,
+				       rw_arg->xdr_buf,
+				       rw_arg->xdr_len / devctl_regmap_config.reg_stride);
 		break;
 	}
 	default:
