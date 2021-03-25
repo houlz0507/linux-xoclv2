@@ -64,6 +64,10 @@ static inline int close_gate(struct xrt_axigate *gate)
 		return ret;
 	}
 	ndelay(XRT_AXIGATE_INTERVAL);
+	/*
+	 * Legacy hardware requires extra read work properly.
+	 * This is not on critical path, thus the extra read should not impact performance much.
+	 */
 	ret = regmap_read(gate->regmap, XRT_AXIGATE_READ_REG, &val);
 	if (ret) {
 		xrt_err(gate->pdev, "read gate failed %d", ret);
@@ -84,6 +88,10 @@ static inline int open_gate(struct xrt_axigate *gate)
 		return ret;
 	}
 	ndelay(XRT_AXIGATE_INTERVAL);
+	/*
+	 * Legacy hardware requires extra read work properly.
+	 * This is not on critical path, thus the extra read should not impact performance much.
+	 */
 	ret = regmap_read(gate->regmap, XRT_AXIGATE_READ_REG, &val);
 	if (ret) {
 		xrt_err(gate->pdev, "read 2 failed %d", ret);
@@ -331,12 +339,4 @@ static struct platform_driver xrt_axigate_driver = {
 	.id_table = xrt_axigate_table,
 };
 
-void axigate_leaf_init_fini(bool init)
-{
-	if (init) {
-		xleaf_register_driver(XRT_SUBDEV_AXIGATE,
-				      &xrt_axigate_driver, xrt_axigate_endpoints);
-	} else {
-		xleaf_unregister_driver(XRT_SUBDEV_AXIGATE);
-	}
-}
+XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_AXIGATE, axigate);

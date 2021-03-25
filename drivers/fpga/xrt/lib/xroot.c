@@ -194,7 +194,7 @@ static int xroot_destroy_single_group(struct xroot *xr, int instance)
 
 	/* Now tear down all children in this group. */
 	ret = xleaf_call(pdev, XRT_GROUP_FINI_CHILDREN, NULL);
-	(void)xroot_put_group(xr, pdev);
+	xroot_put_group(xr, pdev);
 	if (!ret)
 		ret = xrt_subdev_pool_del(&xr->groups.pool, XRT_SUBDEV_GRP, instance);
 
@@ -228,7 +228,7 @@ static int xroot_destroy_group(struct xroot *xr, int instance)
 		/* Reached the target group instance, stop here. */
 		if (instance == inst)
 			break;
-		(void)xroot_destroy_single_group(xr, inst);
+		xroot_destroy_single_group(xr, inst);
 		deps = NULL;
 	}
 
@@ -262,7 +262,7 @@ static void xroot_event_work(struct work_struct *work)
 		list_del(&tmp->list);
 		mutex_unlock(&xr->events.evt_lock);
 
-		(void)xrt_subdev_pool_handle_event(&xr->groups.pool, &tmp->evt);
+		xrt_subdev_pool_handle_event(&xr->groups.pool, &tmp->evt);
 
 		if (tmp->async)
 			vfree(tmp);
@@ -400,7 +400,7 @@ static int xroot_root_cb(struct device *dev, void *parg, enum xrt_root_cmd cmd, 
 								NULL,
 								hwmon->xpih_groups);
 		} else {
-			(void)hwmon_device_unregister(hwmon->xpih_hwmon_dev);
+			hwmon_device_unregister(hwmon->xpih_hwmon_dev);
 		}
 		break;
 	}
@@ -424,7 +424,7 @@ static void xroot_bringup_group_work(struct work_struct *work)
 
 		i = pdev->id;
 		r = xleaf_call(pdev, XRT_GROUP_INIT_CHILDREN, NULL);
-		(void)xroot_put_group(xr, pdev);
+		xroot_put_group(xr, pdev);
 		if (r == -EEXIST)
 			continue; /* Already brough up, nothing to do. */
 		if (r)
@@ -562,7 +562,7 @@ void xroot_remove(void *root)
 		int instance = grp->id;
 
 		xroot_put_group(xr, grp);
-		(void)xroot_destroy_group(xr, instance);
+		xroot_destroy_group(xr, instance);
 	}
 
 	xroot_event_fini(xr);
@@ -584,6 +584,6 @@ void xroot_broadcast(void *root, enum xrt_events evt)
 	e.xe_evt = evt;
 	e.xe_subdev.xevt_subdev_id = XRT_ROOT;
 	e.xe_subdev.xevt_subdev_instance = 0;
-	(void)xroot_trigger_event(xr, &e, false);
+	xroot_trigger_event(xr, &e, false);
 }
 EXPORT_SYMBOL_GPL(xroot_broadcast);

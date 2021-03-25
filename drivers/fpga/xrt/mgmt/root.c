@@ -161,6 +161,8 @@ static void xmgmt_root_hot_reset(struct pci_dev *pdev)
 			break;
 		msleep(20);
 	}
+	if (i == 300)
+		xmgmt_err(xm, "time'd out waiting for device to be online after reset");
 
 	xmgmt_info(xm, "waiting for %d ms", i * 20);
 	xmgmt_pci_restore_config_all(xm);
@@ -269,7 +271,7 @@ static int xmgmt_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	return 0;
 
 failed_metadata:
-	(void)xroot_remove(xm->root);
+	xroot_remove(xm->root);
 failed:
 	pci_set_drvdata(pdev, NULL);
 	return ret;
@@ -281,7 +283,7 @@ static void xmgmt_remove(struct pci_dev *pdev)
 
 	xroot_broadcast(xm->root, XRT_EVENT_PRE_REMOVAL);
 	sysfs_remove_group(&pdev->dev.kobj, &xmgmt_root_attr_group);
-	(void)xroot_remove(xm->root);
+	xroot_remove(xm->root);
 	pci_disable_pcie_error_reporting(xm->pdev);
 	xmgmt_info(xm, "%s cleaned up successfully", XMGMT_MODULE_NAME);
 }

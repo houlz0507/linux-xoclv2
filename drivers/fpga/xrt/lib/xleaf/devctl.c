@@ -180,10 +180,4 @@ static struct platform_driver xrt_devctl_driver = {
 	.id_table = xrt_devctl_table,
 };
 
-void devctl_leaf_init_fini(bool init)
-{
-	if (init)
-		xleaf_register_driver(XRT_SUBDEV_DEVCTL, &xrt_devctl_driver, xrt_devctl_endpoints);
-	else
-		xleaf_unregister_driver(XRT_SUBDEV_DEVCTL);
-}
+XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_DEVCTL, devctl);

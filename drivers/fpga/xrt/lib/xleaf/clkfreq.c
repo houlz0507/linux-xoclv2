@@ -237,12 +237,4 @@ static struct platform_driver xrt_clkfreq_driver = {
 	.id_table = xrt_clkfreq_table,
 };
 
-void clkfreq_leaf_init_fini(bool init)
-{
-	if (init) {
-		xleaf_register_driver(XRT_SUBDEV_CLKFREQ,
-				      &xrt_clkfreq_driver, xrt_clkfreq_endpoints);
-	} else {
-		xleaf_unregister_driver(XRT_SUBDEV_CLKFREQ);
-	}
-}
+XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_CLKFREQ, clkfreq);

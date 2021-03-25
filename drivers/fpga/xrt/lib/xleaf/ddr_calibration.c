@@ -223,10 +223,4 @@ static struct platform_driver xrt_calib_driver = {
 	.id_table = xrt_calib_table,
 };
 
-void calib_leaf_init_fini(bool init)
-{
-	if (init)
-		xleaf_register_driver(XRT_SUBDEV_CALIB, &xrt_calib_driver, xrt_calib_endpoints);
-	else
-		xleaf_unregister_driver(XRT_SUBDEV_CALIB);
-}
+XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_CALIB, calib);

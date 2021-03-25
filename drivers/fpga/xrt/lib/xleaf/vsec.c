@@ -385,10 +385,4 @@ static struct platform_driver xrt_vsec_driver = {
 	.id_table = xrt_vsec_table,
 };
 
-void vsec_leaf_init_fini(bool init)
-{
-	if (init)
-		xleaf_register_driver(XRT_SUBDEV_VSEC, &xrt_vsec_driver, xrt_vsec_endpoints);
-	else
-		xleaf_unregister_driver(XRT_SUBDEV_VSEC);
-}
+XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_VSEC, vsec);

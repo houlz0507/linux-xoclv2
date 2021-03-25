@@ -42,7 +42,12 @@ struct xmgmt_main {
 	u32 blp_interface_uuid_num;
 };
 
-/* Caller is responsible for freeing the returned string. */
+/*
+ * VBNV stands for Vendor, BoardID, Name, Version. It is a string
+ * which describes board and shell.
+ *
+ * Caller is responsible for freeing the returned string.
+ */
 char *xmgmt_get_vbnv(struct platform_device *pdev)
 {
 	struct xmgmt_main *xmm = platform_get_drvdata(pdev);
@@ -194,7 +199,7 @@ static int load_firmware_from_disk(struct platform_device *pdev, struct axlf **f
 	if (err)
 		return err;
 
-	(void)snprintf(fw_name, sizeof(fw_name), "xilinx/%s/partition.xsabin", uuid);
+	snprintf(fw_name, sizeof(fw_name), "xilinx/%s/partition.xsabin", uuid);
 	xrt_info(pdev, "try loading fw: %s", fw_name);
 
 	err = request_firmware(&fw, fw_name, DEV(pdev));
@@ -339,32 +344,34 @@ static int xmgmt_create_blp(struct xmgmt_main *xmm)
 	char *dtb = NULL;
 
 	dtb = xmgmt_get_dtb(pdev, XMGMT_BLP);
-	if (dtb) {
-		rc = xmgmt_process_xclbin(xmm->pdev, xmm->fmgr, provider, XMGMT_BLP);
-		if (rc) {
-			xrt_err(pdev, "failed to process BLP: %d", rc);
+	if (!dtb) {
+		xrt_err(pdev, "did not get BLP metadata");
+		return -EINVAL;
+	}
+
+	rc = xmgmt_process_xclbin(xmm->pdev, xmm->fmgr, provider, XMGMT_BLP);
+	if (rc) {
+		xrt_err(pdev, "failed to process BLP: %d", rc);
+		goto failed;
+	}
+
+	rc = xleaf_create_group(pdev, dtb);
+	if (rc < 0)
+		xrt_err(pdev, "failed to create BLP group: %d", rc);
+	else
+		rc = 0;
+
+	WARN_ON(xmm->blp_interface_uuids);
+	rc = xrt_md_get_interface_uuids(&pdev->dev, dtb, 0, NULL);
+	if (rc > 0) {
+		xmm->blp_interface_uuid_num = rc;
+		xmm->blp_interface_uuids = vzalloc(sizeof(uuid_t) * xmm->blp_interface_uuid_num);
+		if (!xmm->blp_interface_uuids) {
+			rc = -ENOMEM;
 			goto failed;
 		}
-
-		rc = xleaf_create_group(pdev, dtb);
-		if (rc < 0)
-			xrt_err(pdev, "failed to create BLP group: %d", rc);
-		else
-			rc = 0;
-
-		WARN_ON(xmm->blp_interface_uuids);
-		rc = xrt_md_get_interface_uuids(&pdev->dev, dtb, 0, NULL);
-		if (rc > 0) {
-			xmm->blp_interface_uuid_num = rc;
-			xmm->blp_interface_uuids = vzalloc(sizeof(uuid_t) *
-				xmm->blp_interface_uuid_num);
-			if (!xmm->blp_interface_uuids) {
-				rc = -ENOMEM;
-				goto failed;
-			}
-			xrt_md_get_interface_uuids(&pdev->dev, dtb, xmm->blp_interface_uuid_num,
-						   xmm->blp_interface_uuids);
-		}
+		xrt_md_get_interface_uuids(&pdev->dev, dtb, xmm->blp_interface_uuid_num,
+					   xmm->blp_interface_uuids);
 	}
 
 failed:
@@ -380,7 +387,7 @@ static int xmgmt_load_firmware(struct xmgmt_main *xmm)
 
 	rc = load_firmware_from_disk(pdev, &xmm->firmware_blp, &fwlen);
 	if (!rc && is_valid_firmware(pdev, xmm->firmware_blp, fwlen))
-		(void)xmgmt_create_blp(xmm);
+		xmgmt_create_blp(xmm);
 	else
 		xrt_err(pdev, "failed to find firmware, giving up: %d", rc);
 	return rc;
@@ -410,7 +417,7 @@ static void xmgmt_main_event_cb(struct platform_device *pdev, void *arg)
 		}
 
 		if (xmm->flags & XMGMT_FLAG_DEVCTL_READY)
-			(void)xmgmt_load_firmware(xmm);
+			xmgmt_load_firmware(xmm);
 		break;
 	}
 	case XRT_EVENT_PRE_REMOVAL:
@@ -458,8 +465,8 @@ static int xmgmt_main_remove(struct platform_device *pdev)
 	vfree(xmm->firmware_plp);
 	vfree(xmm->firmware_ulp);
 	xmgmt_region_cleanup_all(pdev);
-	(void)xmgmt_fmgr_remove(xmm->fmgr);
-	(void)sysfs_remove_group(&DEV(pdev)->kobj, &xmgmt_main_attrgroup);
+	xmgmt_fmgr_remove(xmm->fmgr);
+	sysfs_remove_group(&DEV(pdev)->kobj, &xmgmt_main_attrgroup);
 	return 0;
 }
 

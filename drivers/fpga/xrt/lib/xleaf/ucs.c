@@ -164,10 +164,4 @@ static struct platform_driver xrt_ucs_driver = {
 	.id_table = xrt_ucs_table,
 };
 
-void ucs_leaf_init_fini(bool init)
-{
-	if (init)
-		xleaf_register_driver(XRT_SUBDEV_UCS, &xrt_ucs_driver, xrt_ucs_endpoints);
-	else
-		xleaf_unregister_driver(XRT_SUBDEV_UCS);
-}
+XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_UCS, ucs);

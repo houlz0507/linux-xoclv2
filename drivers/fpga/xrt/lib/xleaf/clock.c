@@ -666,10 +666,4 @@ static struct platform_driver xrt_clock_driver = {
 	.id_table = xrt_clock_table,
 };
 
-void clock_leaf_init_fini(bool init)
-{
-	if (init)
-		xleaf_register_driver(XRT_SUBDEV_CLOCK, &xrt_clock_driver, xrt_clock_endpoints);
-	else
-		xleaf_unregister_driver(XRT_SUBDEV_CLOCK);
-}
+XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_CLOCK, clock);

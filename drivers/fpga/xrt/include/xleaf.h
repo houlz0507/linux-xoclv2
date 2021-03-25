@@ -238,16 +238,25 @@ int xleaf_register_driver(enum xrt_subdev_id id, struct platform_driver *drv,
 void xleaf_unregister_driver(enum xrt_subdev_id id);
 
 /* Module's init/fini routines for leaf driver in xrt-lib module */
+#define XRT_LEAF_INIT_FINI_FUNC(_id, name)				\
+void name##_leaf_init_fini(bool init)					\
+{									\
+	typeof(_id) id = _id;						\
+	if (init) {							\
+		xleaf_register_driver(id,				\
+				      &xrt_##name##_driver,		\
+				      xrt_##name##_endpoints);		\
+	} else {							\
+		xleaf_unregister_driver(id);				\
+	}								\
+}
+
 void group_leaf_init_fini(bool init);
 void vsec_leaf_init_fini(bool init);
-void vsec_golden_leaf_init_fini(bool init);
 void devctl_leaf_init_fini(bool init);
 void axigate_leaf_init_fini(bool init);
 void icap_leaf_init_fini(bool init);
 void calib_leaf_init_fini(bool init);
-void qspi_leaf_init_fini(bool init);
-void mailbox_leaf_init_fini(bool init);
-void cmc_leaf_init_fini(bool init);
 void clkfreq_leaf_init_fini(bool init);
 void clock_leaf_init_fini(bool init);
 void ucs_leaf_init_fini(bool init);
