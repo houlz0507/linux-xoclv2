@@ -15,14 +15,14 @@
 #include <linux/delay.h>
 
 #include "xroot.h"
-#include "main-impl.h"
+#include "xmgnt.h"
 #include "metadata.h"
 
-#define	XMGMT_MODULE_NAME	"xmgmt"
-#define	XMGMT_DRIVER_VERSION	"4.0.0"
+#define XMGMT_MODULE_NAME	"xrt-mgmt"
+#define XMGMT_DRIVER_VERSION	"4.0.0"
 
-#define	XMGMT_PDEV(xm)		((xm)->pdev)
-#define	XMGMT_DEV(xm)		(&(XMGMT_PDEV(xm)->dev))
+#define XMGMT_PDEV(xm)		((xm)->pdev)
+#define XMGMT_DEV(xm)		(&(XMGMT_PDEV(xm)->dev))
 #define xmgmt_err(xm, fmt, args...)	\
 	dev_err(XMGMT_DEV(xm), "%s: " fmt, __func__, ##args)
 #define xmgmt_warn(xm, fmt, args...)	\
@@ -31,24 +31,26 @@
 	dev_info(XMGMT_DEV(xm), "%s: " fmt, __func__, ##args)
 #define xmgmt_dbg(xm, fmt, args...)	\
 	dev_dbg(XMGMT_DEV(xm), "%s: " fmt, __func__, ##args)
-#define	XMGMT_DEV_ID(_pcidev)			\
+#define XMGMT_DEV_ID(_pcidev)			\
 	({ typeof(_pcidev) (pcidev) = (_pcidev);	\
 	((pci_domain_nr((pcidev)->bus) << 16) |	\
 	PCI_DEVID((pcidev)->bus->number, 0)); })
 
 static struct class *xmgmt_class;
+
+/* PCI Device IDs */
+#define PCI_DEVICE_ID_U50_GOLDEN	0xD020
+#define PCI_DEVICE_ID_U50		0x5020
 static const struct pci_device_id xmgmt_pci_ids[] = {
-	{ PCI_DEVICE(0x10EE, 0xd020), },
-	{ PCI_DEVICE(0x10EE, 0x5020), },
+	{ PCI_DEVICE(PCI_VENDOR_ID_XILINX, PCI_DEVICE_ID_U50_GOLDEN), }, /* Alveo U50 (golden) */
+	{ PCI_DEVICE(PCI_VENDOR_ID_XILINX, PCI_DEVICE_ID_U50), }, /* Alveo U50 */
 	{ 0, }
 };
 
 struct xmgmt {
 	struct pci_dev *pdev;
-	struct xroot *root;
+	void *root;
 
-	/* save config for pci reset */
-	u32 saved_config[8][16];
 	bool ready;
 };
 
@@ -70,27 +72,9 @@ static int xmgmt_config_pci(struct xmgmt *xm)
 	pci_set_master(pdev);
 
 	rc = pcie_get_readrq(pdev);
-	if (rc < 0) {
-		xmgmt_err(xm, "failed to read mrrs %d", rc);
-		return rc;
-	}
-	if (rc > 512) {
-		rc = pcie_set_readrq(pdev, 512);
-		if (rc) {
-			xmgmt_err(xm, "failed to force mrrs %d", rc);
-			return rc;
-		}
-	}
-
+	if (rc > 512)
+		pcie_set_readrq(pdev, 512);
 	return 0;
-}
-
-static void xmgmt_save_config_space(struct pci_dev *pdev, u32 *saved_config)
-{
-	int i;
-
-	for (i = 0; i < 16; i++)
-		pci_read_config_dword(pdev, i * 4, &saved_config[i]);
 }
 
 static int xmgmt_match_slot_and_save(struct device *dev, void *data)
@@ -101,7 +85,6 @@ static int xmgmt_match_slot_and_save(struct device *dev, void *data)
 	if (XMGMT_DEV_ID(pdev) == XMGMT_DEV_ID(xm->pdev)) {
 		pci_cfg_access_lock(pdev);
 		pci_save_state(pdev);
-		xmgmt_save_config_space(pdev, xm->saved_config[PCI_FUNC(pdev->devfn)]);
 	}
 
 	return 0;
@@ -112,31 +95,12 @@ static void xmgmt_pci_save_config_all(struct xmgmt *xm)
 	bus_for_each_dev(&pci_bus_type, NULL, xm, xmgmt_match_slot_and_save);
 }
 
-static void xmgmt_restore_config_space(struct pci_dev *pdev, u32 *config_saved)
-{
-	int i;
-	u32 val;
-
-	for (i = 0; i < 16; i++) {
-		pci_read_config_dword(pdev, i * 4, &val);
-		if (val == config_saved[i])
-			continue;
-
-		pci_write_config_dword(pdev, i * 4, config_saved[i]);
-		pci_read_config_dword(pdev, i * 4, &val);
-		if (val != config_saved[i])
-			dev_err(&pdev->dev, "restore config at %d failed", i * 4);
-	}
-}
-
 static int xmgmt_match_slot_and_restore(struct device *dev, void *data)
 {
 	struct xmgmt *xm = data;
 	struct pci_dev *pdev = to_pci_dev(dev);
 
 	if (XMGMT_DEV_ID(pdev) == XMGMT_DEV_ID(xm->pdev)) {
-		xmgmt_restore_config_space(pdev, xm->saved_config[PCI_FUNC(pdev->devfn)]);
-
 		pci_restore_state(pdev);
 		pci_cfg_access_unlock(pdev);
 	}
@@ -175,17 +139,12 @@ static void xmgmt_root_hot_reset(struct pci_dev *pdev)
 	 */
 
 	pci_read_config_word(bus->self, PCI_COMMAND, &pci_cmd);
-	pci_write_config_word(bus->self, PCI_COMMAND,
-			      (pci_cmd & ~PCI_COMMAND_SERR));
+	pci_write_config_word(bus->self, PCI_COMMAND, (pci_cmd & ~PCI_COMMAND_SERR));
 	pcie_capability_read_word(bus->self, PCI_EXP_DEVCTL, &devctl);
-	pcie_capability_write_word(bus->self, PCI_EXP_DEVCTL,
-				   (devctl & ~PCI_EXP_DEVCTL_FERE));
+	pcie_capability_write_word(bus->self, PCI_EXP_DEVCTL, (devctl & ~PCI_EXP_DEVCTL_FERE));
 	pci_read_config_byte(bus->self, PCI_BRIDGE_CONTROL, &pci_bctl);
-	pci_bctl |= PCI_BRIDGE_CTL_BUS_RESET;
-	pci_write_config_byte(bus->self, PCI_BRIDGE_CONTROL, pci_bctl);
-
+	pci_write_config_byte(bus->self, PCI_BRIDGE_CONTROL, pci_bctl | PCI_BRIDGE_CTL_BUS_RESET);
 	msleep(100);
-	pci_bctl &= ~PCI_BRIDGE_CTL_BUS_RESET;
 	pci_write_config_byte(bus->self, PCI_BRIDGE_CONTROL, pci_bctl);
 	ssleep(1);
 
@@ -202,11 +161,11 @@ static void xmgmt_root_hot_reset(struct pci_dev *pdev)
 			break;
 		msleep(20);
 	}
+	if (i == 300)
+		xmgmt_err(xm, "time'd out waiting for device to be online after reset");
 
 	xmgmt_info(xm, "waiting for %d ms", i * 20);
-
 	xmgmt_pci_restore_config_all(xm);
-
 	xmgmt_config_pci(xm);
 }
 
@@ -228,9 +187,9 @@ static int xmgmt_create_root_metadata(struct xmgmt *xm, char **root_dtb)
 		 * Try vsec-golden which will bring up all hard-coded leaves
 		 * at hard-coded offsets.
 		 */
-		ret = xroot_add_simple_node(xm->root, dtb, NODE_VSEC_GOLDEN);
+		ret = xroot_add_simple_node(xm->root, dtb, XRT_MD_NODE_VSEC_GOLDEN);
 	} else if (ret == 0) {
-		ret = xroot_add_simple_node(xm->root, dtb, NODE_MGMT_MAIN);
+		ret = xroot_add_simple_node(xm->root, dtb, XRT_MD_NODE_MGMT_MAIN);
 	}
 	if (ret)
 		goto failed;
@@ -263,7 +222,7 @@ static struct attribute_group xmgmt_root_attr_group = {
 	.attrs = xmgmt_root_attrs,
 };
 
-static struct xroot_pf_cb xmgmt_xroot_pf_cb = {
+static struct xroot_physical_function_callback xmgmt_xroot_pf_cb = {
 	.xpc_hot_reset = xmgmt_root_hot_reset,
 };
 
@@ -312,7 +271,7 @@ static int xmgmt_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	return 0;
 
 failed_metadata:
-	(void)xroot_remove(xm->root);
+	xroot_remove(xm->root);
 failed:
 	pci_set_drvdata(pdev, NULL);
 	return ret;
@@ -324,7 +283,7 @@ static void xmgmt_remove(struct pci_dev *pdev)
 
 	xroot_broadcast(xm->root, XRT_EVENT_PRE_REMOVAL);
 	sysfs_remove_group(&pdev->dev.kobj, &xmgmt_root_attr_group);
-	(void)xroot_remove(xm->root);
+	xroot_remove(xm->root);
 	pci_disable_pcie_error_reporting(xm->pdev);
 	xmgmt_info(xm, "%s cleaned up successfully", XMGMT_MODULE_NAME);
 }
@@ -340,7 +299,7 @@ static int __init xmgmt_init(void)
 {
 	int res = 0;
 
-	res = xmgmt_main_register_leaf();
+	res = xmgmt_register_leaf();
 	if (res)
 		return res;
 
@@ -361,7 +320,7 @@ static __exit void xmgmt_exit(void)
 {
 	pci_unregister_driver(&xmgmt_driver);
 	class_destroy(xmgmt_class);
-	xmgmt_main_unregister_leaf();
+	xmgmt_unregister_leaf();
 }
 
 module_init(xmgmt_init);

@@ -8,12 +8,9 @@
 FULL_XRT_PATH=$(srctree)/$(src)/..
 FULL_DTC_PATH=$(srctree)/scripts/dtc/libfdt
 
-obj-$(CONFIG_FPGA_XRT_XMGMT)	+= xrt-mgmt.o
+obj-$(CONFIG_FPGA_XRT_METADATA) += xrt-md.o
 
-xrt-mgmt-objs := root.o		\
-	   main.o		\
-	   fmgr-drv.o		\
-	   main-region.o
+xrt-md-objs := metadata.o
 
-ccflags-y := -I$(FULL_XRT_PATH)/include		\
+ccflags-y := -I$(FULL_XRT_PATH)/include	\
 	-I$(FULL_DTC_PATH)

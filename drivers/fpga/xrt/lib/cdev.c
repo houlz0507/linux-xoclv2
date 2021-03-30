@@ -12,12 +12,12 @@
 
 extern struct class *xrt_class;
 
-#define	XRT_CDEV_DIR		"xfpga"
-#define	INODE2PDATA(inode)	\
+#define XRT_CDEV_DIR		"xfpga"
+#define INODE2PDATA(inode)	\
 	container_of((inode)->i_cdev, struct xrt_subdev_platdata, xsp_cdev)
-#define	INODE2PDEV(inode)	\
+#define INODE2PDEV(inode)	\
 	to_platform_device(kobj_to_dev((inode)->i_cdev->kobj.parent))
-#define	CDEV_NAME(sysdev)	(strchr((sysdev)->kobj.name, '!') + 1)
+#define CDEV_NAME(sysdev)	(strchr((sysdev)->kobj.name, '!') + 1)
 
 /* Allow it to be accessed from cdev. */
 static void xleaf_devnode_allowed(struct platform_device *pdev)
@@ -93,7 +93,8 @@ __xleaf_devnode_open(struct inode *inode, bool excl)
 
 	mutex_unlock(&pdata->xsp_devnode_lock);
 
-	return opened ? pdev : NULL;
+	pdev = opened ? pdev : NULL;
+	return pdev;
 }
 
 struct platform_device *
@@ -117,6 +118,7 @@ void xleaf_devnode_close(struct inode *inode)
 
 	mutex_lock(&pdata->xsp_devnode_lock);
 
+	WARN_ON(pdata->xsp_devnode_ref == 0);
 	pdata->xsp_devnode_ref--;
 	if (pdata->xsp_devnode_ref == 0) {
 		pdata->xsp_devnode_excl = false;
@@ -193,7 +195,7 @@ int xleaf_devnode_create(struct platform_device *pdev, const char *file_name,
 	if (IS_ERR(sysdev)) {
 		ret = PTR_ERR(sysdev);
 		xrt_err(pdev, "failed to create device node: %d", ret);
-		goto failed;
+		goto failed_cdev_add;
 	}
 	pdata->xsp_sysdev = sysdev;
 
@@ -203,9 +205,9 @@ int xleaf_devnode_create(struct platform_device *pdev, const char *file_name,
 		 MAJOR(cdevp->dev), pdev->id, fname);
 	return 0;
 
-failed:
-	device_destroy(xrt_class, cdevp->dev);
+failed_cdev_add:
 	cdev_del(cdevp);
+failed:
 	cdevp->owner = NULL;
 	return ret;
 }

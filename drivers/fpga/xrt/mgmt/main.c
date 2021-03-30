@@ -14,29 +14,40 @@
 #include "metadata.h"
 #include "xleaf.h"
 #include <linux/xrt/xmgmt-ioctl.h>
-#include "xleaf/gpio.h"
+#include "xleaf/devctl.h"
 #include "xmgmt-main.h"
 #include "fmgr.h"
 #include "xleaf/icap.h"
 #include "xleaf/axigate.h"
-#include "main-impl.h"
+#include "xmgnt.h"
 
-#define	XMGMT_MAIN "xmgmt_main"
+#define XMGMT_MAIN "xmgmt_main"
+#define XMGMT_SUPP_XCLBIN_MAJOR 2
+
+#define XMGMT_FLAG_FLASH_READY	1
+#define XMGMT_FLAG_DEVCTL_READY	2
+
+#define XMGMT_UUID_STR_LEN	80
 
 struct xmgmt_main {
 	struct platform_device *pdev;
 	struct axlf *firmware_blp;
 	struct axlf *firmware_plp;
 	struct axlf *firmware_ulp;
-	bool flash_ready;
-	bool gpio_ready;
+	u32 flags;
 	struct fpga_manager *fmgr;
-	struct mutex busy_mutex; /* busy lock */
+	struct mutex lock; /* busy lock */
 
-	uuid_t *blp_intf_uuids;
-	u32 blp_intf_uuid_num;
+	uuid_t *blp_interface_uuids;
+	u32 blp_interface_uuid_num;
 };
 
+/*
+ * VBNV stands for Vendor, BoardID, Name, Version. It is a string
+ * which describes board and shell.
+ *
+ * Caller is responsible for freeing the returned string.
+ */
 char *xmgmt_get_vbnv(struct platform_device *pdev)
 {
 	struct xmgmt_main *xmm = platform_get_drvdata(pdev);
@@ -45,13 +56,16 @@ char *xmgmt_get_vbnv(struct platform_device *pdev)
 	int i;
 
 	if (xmm->firmware_plp)
-		vbnv = xmm->firmware_plp->m_header.m_platformVBNV;
+		vbnv = xmm->firmware_plp->header.platform_vbnv;
 	else if (xmm->firmware_blp)
-		vbnv = xmm->firmware_blp->m_header.m_platformVBNV;
+		vbnv = xmm->firmware_blp->header.platform_vbnv;
 	else
 		return NULL;
 
 	ret = kstrdup(vbnv, GFP_KERNEL);
+	if (!ret)
+		return NULL;
+
 	for (i = 0; i < strlen(ret); i++) {
 		if (ret[i] == ':' || ret[i] == '.')
 			ret[i] = '_';
@@ -61,33 +75,31 @@ char *xmgmt_get_vbnv(struct platform_device *pdev)
 
 static int get_dev_uuid(struct platform_device *pdev, char *uuidstr, size_t len)
 {
-	char uuid[16];
-	struct platform_device *gpio_leaf;
-	struct xrt_gpio_ioctl_rw gpio_arg = { 0 };
-	int err, i, count;
+	struct xrt_devctl_rw devctl_arg = { 0 };
+	struct platform_device *devctl_leaf;
+	char uuid_buf[UUID_SIZE];
+	uuid_t uuid;
+	int err;
 
-	gpio_leaf = xleaf_get_leaf_by_epname(pdev, NODE_BLP_ROM);
-	if (!gpio_leaf) {
-		xrt_err(pdev, "can not get %s", NODE_BLP_ROM);
+	devctl_leaf = xleaf_get_leaf_by_epname(pdev, XRT_MD_NODE_BLP_ROM);
+	if (!devctl_leaf) {
+		xrt_err(pdev, "can not get %s", XRT_MD_NODE_BLP_ROM);
 		return -EINVAL;
 	}
 
-	gpio_arg.xgir_id = XRT_GPIO_ROM_UUID;
-	gpio_arg.xgir_buf = uuid;
-	gpio_arg.xgir_len = sizeof(uuid);
-	gpio_arg.xgir_offset = 0;
-	err = xleaf_ioctl(gpio_leaf, XRT_GPIO_READ, &gpio_arg);
-	xleaf_put_leaf(pdev, gpio_leaf);
+	devctl_arg.xdr_id = XRT_DEVCTL_ROM_UUID;
+	devctl_arg.xdr_buf = uuid_buf;
+	devctl_arg.xdr_len = sizeof(uuid_buf);
+	devctl_arg.xdr_offset = 0;
+	err = xleaf_call(devctl_leaf, XRT_DEVCTL_READ, &devctl_arg);
+	xleaf_put_leaf(pdev, devctl_leaf);
 	if (err) {
 		xrt_err(pdev, "can not get uuid: %d", err);
 		return err;
 	}
+	import_uuid(&uuid, uuid_buf);
+	xrt_md_trans_uuid2str(&uuid, uuidstr);
 
-	for (count = 0, i = sizeof(uuid) - sizeof(u32);
-		i >= 0 && len > count; i -= sizeof(u32)) {
-		count += snprintf(uuidstr + count, len - count,
-			"%08x", *(u32 *)&uuid[i]);
-	}
 	return 0;
 }
 
@@ -105,43 +117,39 @@ int xmgmt_hot_reset(struct platform_device *pdev)
 	return 0;
 }
 
-static ssize_t reset_store(struct device *dev,
-			   struct device_attribute *da,
+static ssize_t reset_store(struct device *dev, struct device_attribute *da,
 			   const char *buf, size_t count)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 
-	(void)xmgmt_hot_reset(pdev);
+	xmgmt_hot_reset(pdev);
 	return count;
 }
 static DEVICE_ATTR_WO(reset);
 
-static ssize_t VBNV_show(struct device *dev,
-			 struct device_attribute *da, char *buf)
+static ssize_t VBNV_show(struct device *dev, struct device_attribute *da, char *buf)
 {
+	struct platform_device *pdev = to_platform_device(dev);
 	ssize_t ret;
 	char *vbnv;
-	struct platform_device *pdev = to_platform_device(dev);
 
 	vbnv = xmgmt_get_vbnv(pdev);
+	if (!vbnv)
+		return -EINVAL;
 	ret = sprintf(buf, "%s\n", vbnv);
 	kfree(vbnv);
 	return ret;
 }
 static DEVICE_ATTR_RO(VBNV);
 
-static ssize_t logic_uuids_show(struct device *dev,
-				struct device_attribute *da, char *buf)
+/* logic uuid is the uuid uniquely identfy the partition */
+static ssize_t logic_uuids_show(struct device *dev, struct device_attribute *da, char *buf)
 {
-	ssize_t ret;
-	char uuid[80];
 	struct platform_device *pdev = to_platform_device(dev);
+	char uuid[XMGMT_UUID_STR_LEN];
+	ssize_t ret;
 
-	/*
-	 * Getting UUID pointed to by VSEC,
-	 * should be the same as logic UUID of BLP.
-	 * TODO: add PLP logic UUID
-	 */
+	/* Getting UUID pointed to by VSEC, should be the same as logic UUID of BLP. */
 	ret = get_dev_uuid(pdev, uuid, sizeof(uuid));
 	if (ret)
 		return ret;
@@ -150,30 +158,17 @@ static ssize_t logic_uuids_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(logic_uuids);
 
-static inline void uuid2str(const uuid_t *uuid, char *uuidstr)
+static ssize_t interface_uuids_show(struct device *dev, struct device_attribute *da, char *buf)
 {
-	int i, p;
-	u8 *u = (u8 *)uuid;
-
-	for (p = 0, i = sizeof(uuid_t) - 1; i >= 0; p++, i--)
-		(void)snprintf(&uuidstr[p * 2], 3, "%02x", u[i]);
-}
-
-static ssize_t interface_uuids_show(struct device *dev,
-				    struct device_attribute *da, char *buf)
-{
-	ssize_t ret = 0;
 	struct platform_device *pdev = to_platform_device(dev);
 	struct xmgmt_main *xmm = platform_get_drvdata(pdev);
+	ssize_t ret = 0;
 	u32 i;
 
-	/*
-	 * TODO: add PLP interface UUID
-	 */
-	for (i = 0; i < xmm->blp_intf_uuid_num; i++) {
-		char uuidstr[80];
+	for (i = 0; i < xmm->blp_interface_uuid_num; i++) {
+		char uuidstr[XMGMT_UUID_STR_LEN];
 
-		uuid2str(&xmm->blp_intf_uuids[i], uuidstr);
+		xrt_md_trans_uuid2str(&xmm->blp_interface_uuids[i], uuidstr);
 		ret += sprintf(buf + ret, "%s\n", uuidstr);
 	}
 	return ret;
@@ -188,86 +183,23 @@ static struct attribute *xmgmt_main_attrs[] = {
 	NULL,
 };
 
-/*
- * sysfs hook to load xclbin primarily used for driver debug
- */
-static ssize_t ulp_image_write(struct file *filp, struct kobject *kobj,
-			       struct bin_attribute *attr, char *buffer,
-			       loff_t off, size_t count)
-{
-	struct xmgmt_main *xmm =
-		dev_get_drvdata(container_of(kobj, struct device, kobj));
-	struct axlf *xclbin;
-	ulong len;
-
-	if (off == 0) {
-		if (count < sizeof(*xclbin)) {
-			xrt_err(xmm->pdev, "count is too small %zu", count);
-			return -EINVAL;
-		}
-
-		if (xmm->firmware_ulp) {
-			vfree(xmm->firmware_ulp);
-			xmm->firmware_ulp = NULL;
-		}
-		xclbin = (struct axlf *)buffer;
-		xmm->firmware_ulp = vmalloc(xclbin->m_header.m_length);
-		if (!xmm->firmware_ulp)
-			return -ENOMEM;
-	} else {
-		xclbin = xmm->firmware_ulp;
-	}
-
-	len = xclbin->m_header.m_length;
-	if (off + count >= len && off < len) {
-		memcpy(xmm->firmware_ulp + off, buffer, len - off);
-		xmgmt_process_xclbin(xmm->pdev, xmm->fmgr, xmm->firmware_ulp,
-				     XMGMT_ULP);
-	} else if (off + count < len) {
-		memcpy(xmm->firmware_ulp + off, buffer, count);
-	}
-
-	return count;
-}
-
-static struct bin_attribute ulp_image_attr = {
-	.attr = {
-		.name = "ulp_image",
-		.mode = 0200
-	},
-	.write = ulp_image_write,
-	.size = 0
-};
-
-static struct bin_attribute *xmgmt_main_bin_attrs[] = {
-	&ulp_image_attr,
-	NULL,
-};
-
 static const struct attribute_group xmgmt_main_attrgroup = {
 	.attrs = xmgmt_main_attrs,
-	.bin_attrs = xmgmt_main_bin_attrs,
 };
 
-static int load_firmware_from_flash(struct platform_device *pdev,
-				    struct axlf **fw_buf, size_t *len)
+static int load_firmware_from_disk(struct platform_device *pdev, struct axlf **fw_buf, size_t *len)
 {
-	return -EOPNOTSUPP;
-}
-
-static int load_firmware_from_disk(struct platform_device *pdev, struct axlf **fw_buf,
-				   size_t *len)
-{
-	char uuid[80];
-	int err = 0;
-	char fw_name[256];
+	char uuid[XMGMT_UUID_STR_LEN];
 	const struct firmware *fw;
+	char fw_name[256];
+	int err = 0;
 
+	*len = 0;
 	err = get_dev_uuid(pdev, uuid, sizeof(uuid));
 	if (err)
 		return err;
 
-	(void)snprintf(fw_name, sizeof(fw_name), "xilinx/%s/partition.xsabin", uuid);
+	snprintf(fw_name, sizeof(fw_name), "xilinx/%s/partition.xsabin", uuid);
 	xrt_info(pdev, "try loading fw: %s", fw_name);
 
 	err = request_firmware(&fw, fw_name, DEV(pdev));
@@ -275,18 +207,19 @@ static int load_firmware_from_disk(struct platform_device *pdev, struct axlf **f
 		return err;
 
 	*fw_buf = vmalloc(fw->size);
+	if (!*fw_buf) {
+		release_firmware(fw);
+		return -ENOMEM;
+	}
+
 	*len = fw->size;
-	if (*fw_buf)
-		memcpy(*fw_buf, fw->data, fw->size);
-	else
-		err = -ENOMEM;
+	memcpy(*fw_buf, fw->data, fw->size);
 
 	release_firmware(fw);
 	return 0;
 }
 
-static const struct axlf *xmgmt_get_axlf_firmware(struct xmgmt_main *xmm,
-						  enum provider_kind kind)
+static const struct axlf *xmgmt_get_axlf_firmware(struct xmgmt_main *xmm, enum provider_kind kind)
 {
 	switch (kind) {
 	case XMGMT_BLP:
@@ -301,13 +234,15 @@ static const struct axlf *xmgmt_get_axlf_firmware(struct xmgmt_main *xmm,
 	}
 }
 
+/* The caller needs to free the returned dtb buffer */
 char *xmgmt_get_dtb(struct platform_device *pdev, enum provider_kind kind)
 {
 	struct xmgmt_main *xmm = platform_get_drvdata(pdev);
+	const struct axlf *provider;
 	char *dtb = NULL;
-	const struct axlf *provider = xmgmt_get_axlf_firmware(xmm, kind);
 	int rc;
 
+	provider = xmgmt_get_axlf_firmware(xmm, kind);
 	if (!provider)
 		return dtb;
 
@@ -317,20 +252,19 @@ char *xmgmt_get_dtb(struct platform_device *pdev, enum provider_kind kind)
 	return dtb;
 }
 
-static const char *get_uuid_from_firmware(struct platform_device *pdev,
-					  const struct axlf *xclbin)
+/* The caller needs to free the returned uuid buffer */
+static const char *get_uuid_from_firmware(struct platform_device *pdev, const struct axlf *xclbin)
 {
-	const void *uuid = NULL;
 	const void *uuiddup = NULL;
+	const void *uuid = NULL;
 	void *dtb = NULL;
 	int rc;
 
-	rc = xrt_xclbin_get_section(xclbin, PARTITION_METADATA, &dtb, NULL);
+	rc = xrt_xclbin_get_section(DEV(pdev), xclbin, PARTITION_METADATA, &dtb, NULL);
 	if (rc)
 		return NULL;
 
-	rc = xrt_md_get_prop(DEV(pdev), dtb, NULL, NULL,
-			     PROP_LOGIC_UUID, &uuid, NULL);
+	rc = xrt_md_get_prop(DEV(pdev), dtb, NULL, NULL, XRT_MD_PROP_LOGIC_UUID, &uuid, NULL);
 	if (!rc)
 		uuiddup = kstrdup(uuid, GFP_KERNEL);
 	vfree(dtb);
@@ -341,28 +275,32 @@ static bool is_valid_firmware(struct platform_device *pdev,
 			      const struct axlf *xclbin, size_t fw_len)
 {
 	const char *fw_buf = (const char *)xclbin;
-	size_t axlflen = xclbin->m_header.m_length;
+	size_t axlflen = xclbin->header.length;
+	char dev_uuid[XMGMT_UUID_STR_LEN];
 	const char *fw_uuid;
-	char dev_uuid[80];
 	int err;
 
 	err = get_dev_uuid(pdev, dev_uuid, sizeof(dev_uuid));
 	if (err)
 		return false;
 
-	if (memcmp(fw_buf, ICAP_XCLBIN_V2, sizeof(ICAP_XCLBIN_V2)) != 0) {
+	if (memcmp(fw_buf, XCLBIN_VERSION2, sizeof(XCLBIN_VERSION2)) != 0) {
 		xrt_err(pdev, "unknown fw format");
 		return false;
 	}
 
 	if (axlflen > fw_len) {
-		xrt_err(pdev, "truncated fw, length: %zu, expect: %zu",
-			fw_len, axlflen);
+		xrt_err(pdev, "truncated fw, length: %zu, expect: %zu", fw_len, axlflen);
+		return false;
+	}
+
+	if (xclbin->header.version_major != XMGMT_SUPP_XCLBIN_MAJOR) {
+		xrt_err(pdev, "firmware is not supported");
 		return false;
 	}
 
 	fw_uuid = get_uuid_from_firmware(pdev, xclbin);
-	if (!fw_uuid || strcmp(fw_uuid, dev_uuid) != 0) {
+	if (!fw_uuid || strncmp(fw_uuid, dev_uuid, sizeof(dev_uuid)) != 0) {
 		xrt_err(pdev, "bad fw UUID: %s, expect: %s",
 			fw_uuid ? fw_uuid : "<none>", dev_uuid);
 		kfree(fw_uuid);
@@ -373,15 +311,14 @@ static bool is_valid_firmware(struct platform_device *pdev,
 	return true;
 }
 
-int xmgmt_get_provider_uuid(struct platform_device *pdev,
-			    enum provider_kind kind, uuid_t *uuid)
+int xmgmt_get_provider_uuid(struct platform_device *pdev, enum provider_kind kind, uuid_t *uuid)
 {
 	struct xmgmt_main *xmm = platform_get_drvdata(pdev);
 	const struct axlf *fwbuf;
 	const char *fw_uuid;
 	int rc = -ENOENT;
 
-	mutex_lock(&xmm->busy_mutex);
+	mutex_lock(&xmm->lock);
 
 	fwbuf = xmgmt_get_axlf_firmware(xmm, kind);
 	if (!fwbuf)
@@ -391,46 +328,50 @@ int xmgmt_get_provider_uuid(struct platform_device *pdev,
 	if (!fw_uuid)
 		goto done;
 
-	rc = xrt_md_uuid_strtoid(DEV(pdev), fw_uuid, uuid);
+	rc = xrt_md_trans_str2uuid(DEV(pdev), fw_uuid, uuid);
 	kfree(fw_uuid);
 
 done:
-	mutex_unlock(&xmm->busy_mutex);
+	mutex_unlock(&xmm->lock);
 	return rc;
 }
 
 static int xmgmt_create_blp(struct xmgmt_main *xmm)
 {
+	const struct axlf *provider = xmgmt_get_axlf_firmware(xmm, XMGMT_BLP);
 	struct platform_device *pdev = xmm->pdev;
 	int rc = 0;
 	char *dtb = NULL;
-	const struct axlf *provider = xmgmt_get_axlf_firmware(xmm, XMGMT_BLP);
 
 	dtb = xmgmt_get_dtb(pdev, XMGMT_BLP);
-	if (dtb) {
-		rc = xmgmt_process_xclbin(xmm->pdev, xmm->fmgr,
-					  provider, XMGMT_BLP);
-		if (rc) {
-			xrt_err(pdev, "failed to process BLP: %d", rc);
+	if (!dtb) {
+		xrt_err(pdev, "did not get BLP metadata");
+		return -EINVAL;
+	}
+
+	rc = xmgmt_process_xclbin(xmm->pdev, xmm->fmgr, provider, XMGMT_BLP);
+	if (rc) {
+		xrt_err(pdev, "failed to process BLP: %d", rc);
+		goto failed;
+	}
+
+	rc = xleaf_create_group(pdev, dtb);
+	if (rc < 0)
+		xrt_err(pdev, "failed to create BLP group: %d", rc);
+	else
+		rc = 0;
+
+	WARN_ON(xmm->blp_interface_uuids);
+	rc = xrt_md_get_interface_uuids(&pdev->dev, dtb, 0, NULL);
+	if (rc > 0) {
+		xmm->blp_interface_uuid_num = rc;
+		xmm->blp_interface_uuids = vzalloc(sizeof(uuid_t) * xmm->blp_interface_uuid_num);
+		if (!xmm->blp_interface_uuids) {
+			rc = -ENOMEM;
 			goto failed;
 		}
-
-		rc = xleaf_create_group(pdev, dtb);
-		if (rc < 0)
-			xrt_err(pdev, "failed to create BLP group: %d", rc);
-		else
-			rc = 0;
-
-		WARN_ON(xmm->blp_intf_uuids);
-		xrt_md_get_intf_uuids(&pdev->dev, dtb,
-				      &xmm->blp_intf_uuid_num, NULL);
-		if (xmm->blp_intf_uuid_num > 0) {
-			xmm->blp_intf_uuids = vzalloc(sizeof(uuid_t) *
-						      xmm->blp_intf_uuid_num);
-			xrt_md_get_intf_uuids(&pdev->dev, dtb,
-					      &xmm->blp_intf_uuid_num,
-					      xmm->blp_intf_uuids);
-		}
+		xrt_md_get_interface_uuids(&pdev->dev, dtb, xmm->blp_interface_uuid_num,
+					   xmm->blp_interface_uuids);
 	}
 
 failed:
@@ -441,14 +382,12 @@ failed:
 static int xmgmt_load_firmware(struct xmgmt_main *xmm)
 {
 	struct platform_device *pdev = xmm->pdev;
-	int rc;
 	size_t fwlen;
+	int rc;
 
 	rc = load_firmware_from_disk(pdev, &xmm->firmware_blp, &fwlen);
-	if (rc != 0)
-		rc = load_firmware_from_flash(pdev, &xmm->firmware_blp, &fwlen);
-	if (rc == 0 && is_valid_firmware(pdev, xmm->firmware_blp, fwlen))
-		(void)xmgmt_create_blp(xmm);
+	if (!rc && is_valid_firmware(pdev, xmm->firmware_blp, fwlen))
+		xmgmt_create_blp(xmm);
 	else
 		xrt_err(pdev, "failed to find firmware, giving up: %d", rc);
 	return rc;
@@ -459,25 +398,26 @@ static void xmgmt_main_event_cb(struct platform_device *pdev, void *arg)
 	struct xmgmt_main *xmm = platform_get_drvdata(pdev);
 	struct xrt_event *evt = (struct xrt_event *)arg;
 	enum xrt_events e = evt->xe_evt;
-	enum xrt_subdev_id id = evt->xe_subdev.xevt_subdev_id;
 	struct platform_device *leaf;
+	enum xrt_subdev_id id;
 
+	id = evt->xe_subdev.xevt_subdev_id;
 	switch (e) {
 	case XRT_EVENT_POST_CREATION: {
-		if (id == XRT_SUBDEV_GPIO && !xmm->gpio_ready) {
-			leaf = xleaf_get_leaf_by_epname(pdev, NODE_BLP_ROM);
+		if (id == XRT_SUBDEV_DEVCTL && !(xmm->flags & XMGMT_FLAG_DEVCTL_READY)) {
+			leaf = xleaf_get_leaf_by_epname(pdev, XRT_MD_NODE_BLP_ROM);
 			if (leaf) {
-				xmm->gpio_ready = true;
+				xmm->flags |= XMGMT_FLAG_DEVCTL_READY;
 				xleaf_put_leaf(pdev, leaf);
 			}
-		} else if (id == XRT_SUBDEV_QSPI && !xmm->flash_ready) {
-			xmm->flash_ready = true;
+		} else if (id == XRT_SUBDEV_QSPI && !(xmm->flags & XMGMT_FLAG_FLASH_READY)) {
+			xmm->flags |= XMGMT_FLAG_FLASH_READY;
 		} else {
 			break;
 		}
 
-		if (xmm->gpio_ready)
-			(void)xmgmt_load_firmware(xmm);
+		if (xmm->flags & XMGMT_FLAG_DEVCTL_READY)
+			xmgmt_load_firmware(xmm);
 		break;
 	}
 	case XRT_EVENT_PRE_REMOVAL:
@@ -504,7 +444,7 @@ static int xmgmt_main_probe(struct platform_device *pdev)
 		return PTR_ERR(xmm->fmgr);
 
 	platform_set_drvdata(pdev, xmm);
-	mutex_init(&xmm->busy_mutex);
+	mutex_init(&xmm->lock);
 
 	/* Ready to handle req thru sysfs nodes. */
 	if (sysfs_create_group(&DEV(pdev)->kobj, &xmgmt_main_attrgroup))
@@ -520,18 +460,18 @@ static int xmgmt_main_remove(struct platform_device *pdev)
 
 	xrt_info(pdev, "leaving...");
 
-	vfree(xmm->blp_intf_uuids);
+	vfree(xmm->blp_interface_uuids);
 	vfree(xmm->firmware_blp);
 	vfree(xmm->firmware_plp);
 	vfree(xmm->firmware_ulp);
 	xmgmt_region_cleanup_all(pdev);
-	(void)xmgmt_fmgr_remove(xmm->fmgr);
-	(void)sysfs_remove_group(&DEV(pdev)->kobj, &xmgmt_main_attrgroup);
+	xmgmt_fmgr_remove(xmm->fmgr);
+	sysfs_remove_group(&DEV(pdev)->kobj, &xmgmt_main_attrgroup);
 	return 0;
 }
 
 static int
-xmgmt_main_leaf_ioctl(struct platform_device *pdev, u32 cmd, void *arg)
+xmgmt_mainleaf_call(struct platform_device *pdev, u32 cmd, void *arg)
 {
 	struct xmgmt_main *xmm = platform_get_drvdata(pdev);
 	int ret = 0;
@@ -541,15 +481,14 @@ xmgmt_main_leaf_ioctl(struct platform_device *pdev, u32 cmd, void *arg)
 		xmgmt_main_event_cb(pdev, arg);
 		break;
 	case XRT_MGMT_MAIN_GET_AXLF_SECTION: {
-		struct xrt_mgmt_main_ioctl_get_axlf_section *get =
-			(struct xrt_mgmt_main_ioctl_get_axlf_section *)arg;
-		const struct axlf *firmware =
-			xmgmt_get_axlf_firmware(xmm, get->xmmigas_axlf_kind);
+		struct xrt_mgmt_main_get_axlf_section *get =
+			(struct xrt_mgmt_main_get_axlf_section *)arg;
+		const struct axlf *firmware = xmgmt_get_axlf_firmware(xmm, get->xmmigas_axlf_kind);
 
 		if (!firmware) {
 			ret = -ENOENT;
 		} else {
-			ret = xrt_xclbin_get_section(firmware,
+			ret = xrt_xclbin_get_section(DEV(pdev), firmware,
 						     get->xmmigas_section_kind,
 						     &get->xmmigas_section,
 						     &get->xmmigas_section_size);
@@ -560,6 +499,8 @@ xmgmt_main_leaf_ioctl(struct platform_device *pdev, u32 cmd, void *arg)
 		char **vbnv_p = (char **)arg;
 
 		*vbnv_p = xmgmt_get_vbnv(pdev);
+		if (!*vbnv_p)
+			ret = -EINVAL;
 		break;
 	}
 	default:
@@ -596,12 +537,11 @@ static int xmgmt_main_close(struct inode *inode, struct file *file)
 /*
  * Called for xclbin download xclbin load ioctl.
  */
-static int xmgmt_bitstream_axlf_fpga_mgr(struct xmgmt_main *xmm,
-					 void *axlf, size_t size)
+static int xmgmt_bitstream_axlf_fpga_mgr(struct xmgmt_main *xmm, void *axlf, size_t size)
 {
 	int ret;
 
-	WARN_ON(!mutex_is_locked(&xmm->busy_mutex));
+	WARN_ON(!mutex_is_locked(&xmm->lock));
 
 	/*
 	 * Should any error happens during download, we can't trust
@@ -619,23 +559,25 @@ static int xmgmt_bitstream_axlf_fpga_mgr(struct xmgmt_main *xmm,
 
 static int bitstream_axlf_ioctl(struct xmgmt_main *xmm, const void __user *arg)
 {
-	void *copy_buffer = NULL;
-	size_t copy_buffer_size = 0;
 	struct xmgmt_ioc_bitstream_axlf ioc_obj = { 0 };
 	struct axlf xclbin_obj = { {0} };
+	size_t copy_buffer_size = 0;
+	void *copy_buffer = NULL;
 	int ret = 0;
 
 	if (copy_from_user((void *)&ioc_obj, arg, sizeof(ioc_obj)))
 		return -EFAULT;
-	if (copy_from_user((void *)&xclbin_obj, ioc_obj.xclbin,
-			   sizeof(xclbin_obj)))
+	if (copy_from_user((void *)&xclbin_obj, ioc_obj.xclbin, sizeof(xclbin_obj)))
 		return -EFAULT;
-	if (memcmp(xclbin_obj.m_magic, ICAP_XCLBIN_V2, sizeof(ICAP_XCLBIN_V2)))
+	if (memcmp(xclbin_obj.magic, XCLBIN_VERSION2, sizeof(XCLBIN_VERSION2)))
 		return -EINVAL;
 
-	copy_buffer_size = xclbin_obj.m_header.m_length;
-	if (copy_buffer_size > MAX_XCLBIN_SIZE)
+	copy_buffer_size = xclbin_obj.header.length;
+	if (copy_buffer_size > XCLBIN_MAX_SIZE || copy_buffer_size < sizeof(xclbin_obj))
 		return -EINVAL;
+	if (xclbin_obj.header.version_major != XMGMT_SUPP_XCLBIN_MAJOR)
+		return -EINVAL;
+
 	copy_buffer = vmalloc(copy_buffer_size);
 	if (!copy_buffer)
 		return -ENOMEM;
@@ -652,16 +594,15 @@ static int bitstream_axlf_ioctl(struct xmgmt_main *xmm, const void __user *arg)
 	return ret;
 }
 
-static long xmgmt_main_ioctl(struct file *filp, unsigned int cmd,
-			     unsigned long arg)
+static long xmgmt_main_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
-	long result = 0;
 	struct xmgmt_main *xmm = filp->private_data;
+	long result = 0;
 
 	if (_IOC_TYPE(cmd) != XMGMT_IOC_MAGIC)
 		return -ENOTTY;
 
-	mutex_lock(&xmm->busy_mutex);
+	mutex_lock(&xmm->lock);
 
 	xrt_info(xmm->pdev, "ioctl cmd %d, arg %ld", cmd, arg);
 	switch (cmd) {
@@ -673,14 +614,14 @@ static long xmgmt_main_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	}
 
-	mutex_unlock(&xmm->busy_mutex);
+	mutex_unlock(&xmm->lock);
 	return result;
 }
 
 static struct xrt_subdev_endpoints xrt_mgmt_main_endpoints[] = {
 	{
 		.xse_names = (struct xrt_subdev_ep_names []){
-			{ .ep_name = NODE_MGMT_MAIN },
+			{ .ep_name = XRT_MD_NODE_MGMT_MAIN },
 			{ NULL },
 		},
 		.xse_min_ep = 1,
@@ -690,7 +631,7 @@ static struct xrt_subdev_endpoints xrt_mgmt_main_endpoints[] = {
 
 static struct xrt_subdev_drvdata xmgmt_main_data = {
 	.xsd_dev_ops = {
-		.xsd_ioctl = xmgmt_main_leaf_ioctl,
+		.xsd_leaf_call = xmgmt_mainleaf_call,
 	},
 	.xsd_file_ops = {
 		.xsf_ops = {
@@ -708,7 +649,7 @@ static const struct platform_device_id xmgmt_main_id_table[] = {
 	{ },
 };
 
-struct platform_driver xmgmt_main_driver = {
+static struct platform_driver xmgmt_main_driver = {
 	.driver	= {
 		.name    = XMGMT_MAIN,
 	},
@@ -717,13 +658,13 @@ struct platform_driver xmgmt_main_driver = {
 	.id_table = xmgmt_main_id_table,
 };
 
-int xmgmt_main_register_leaf(void)
+int xmgmt_register_leaf(void)
 {
-	return xleaf_register_external_driver(XRT_SUBDEV_MGMT_MAIN,
-		&xmgmt_main_driver, xrt_mgmt_main_endpoints);
+	return xleaf_register_driver(XRT_SUBDEV_MGMT_MAIN,
+				     &xmgmt_main_driver, xrt_mgmt_main_endpoints);
 }
 
-void xmgmt_main_unregister_leaf(void)
+void xmgmt_unregister_leaf(void)
 {
-	xleaf_unregister_external_driver(XRT_SUBDEV_MGMT_MAIN);
+	xleaf_unregister_driver(XRT_SUBDEV_MGMT_MAIN);
 }

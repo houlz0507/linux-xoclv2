@@ -16,8 +16,8 @@
 #include "group.h"
 #include "metadata.h"
 
-#define	XROOT_PDEV(xr)		((xr)->pdev)
-#define	XROOT_DEV(xr)		(&(XROOT_PDEV(xr)->dev))
+#define XROOT_PDEV(xr)		((xr)->pdev)
+#define XROOT_DEV(xr)		(&(XROOT_PDEV(xr)->dev))
 #define xroot_err(xr, fmt, args...)	\
 	dev_err(XROOT_DEV(xr), "%s: " fmt, __func__, ##args)
 #define xroot_warn(xr, fmt, args...)	\
@@ -29,8 +29,8 @@
 
 #define XRT_VSEC_ID		0x20
 
-#define	XROOT_GRP_FIRST		(-1)
-#define	XROOT_GRP_LAST		(-2)
+#define XROOT_GROUP_FIRST		(-1)
+#define XROOT_GROUP_LAST		(-2)
 
 static int xroot_root_cb(struct device *, void *, u32, void *);
 
@@ -47,7 +47,7 @@ struct xroot_events {
 	struct work_struct evt_work;
 };
 
-struct xroot_grps {
+struct xroot_groups {
 	struct xrt_subdev_pool pool;
 	struct work_struct bringup_work;
 	atomic_t bringup_pending;
@@ -58,38 +58,38 @@ struct xroot_grps {
 struct xroot {
 	struct pci_dev *pdev;
 	struct xroot_events events;
-	struct xroot_grps grps;
-	struct xroot_pf_cb pf_cb;
+	struct xroot_groups groups;
+	struct xroot_physical_function_callback pf_cb;
 };
 
-struct xroot_grp_match_arg {
+struct xroot_group_match_arg {
 	enum xrt_subdev_id id;
 	int instance;
 };
 
-static bool xroot_grp_match(enum xrt_subdev_id id,
-			    struct platform_device *pdev, void *arg)
+static bool xroot_group_match(enum xrt_subdev_id id, struct platform_device *pdev, void *arg)
 {
-	struct xroot_grp_match_arg *a = (struct xroot_grp_match_arg *)arg;
+	struct xroot_group_match_arg *a = (struct xroot_group_match_arg *)arg;
+
+	/* pdev->id is the instance of the subdev. */
 	return id == a->id && pdev->id == a->instance;
 }
 
-static int xroot_get_group(struct xroot *xr, int instance,
-			   struct platform_device **grpp)
+static int xroot_get_group(struct xroot *xr, int instance, struct platform_device **grpp)
 {
 	int rc = 0;
-	struct xrt_subdev_pool *grps = &xr->grps.pool;
+	struct xrt_subdev_pool *grps = &xr->groups.pool;
 	struct device *dev = DEV(xr->pdev);
-	struct xroot_grp_match_arg arg = { XRT_SUBDEV_GRP, instance };
+	struct xroot_group_match_arg arg = { XRT_SUBDEV_GRP, instance };
 
-	if (instance == XROOT_GRP_LAST) {
+	if (instance == XROOT_GROUP_LAST) {
 		rc = xrt_subdev_pool_get(grps, XRT_SUBDEV_MATCH_NEXT,
 					 *grpp, dev, grpp);
-	} else if (instance == XROOT_GRP_FIRST) {
+	} else if (instance == XROOT_GROUP_FIRST) {
 		rc = xrt_subdev_pool_get(grps, XRT_SUBDEV_MATCH_PREV,
 					 *grpp, dev, grpp);
 	} else {
-		rc = xrt_subdev_pool_get(grps, xroot_grp_match,
+		rc = xrt_subdev_pool_get(grps, xroot_group_match,
 					 &arg, dev, grpp);
 	}
 
@@ -101,14 +101,13 @@ static int xroot_get_group(struct xroot *xr, int instance,
 static void xroot_put_group(struct xroot *xr, struct platform_device *grp)
 {
 	int inst = grp->id;
-	int rc = xrt_subdev_pool_put(&xr->grps.pool, grp, DEV(xr->pdev));
+	int rc = xrt_subdev_pool_put(&xr->groups.pool, grp, DEV(xr->pdev));
 
 	if (rc)
 		xroot_err(xr, "failed to release group %d: %d", inst, rc);
 }
 
-static int xroot_trigger_event(struct xroot *xr,
-			       struct xrt_event *e, bool async)
+static int xroot_trigger_event(struct xroot *xr, struct xrt_event *e, bool async)
 {
 	struct xroot_evt *enew = vzalloc(sizeof(*enew));
 
@@ -152,29 +151,29 @@ xroot_group_trigger_event(struct xroot *xr, int inst, enum xrt_events e)
 		return;
 
 	/* Triggers event for children, first. */
-	(void)xleaf_ioctl(pdev, XRT_GROUP_TRIGGER_EVENT, (void *)(uintptr_t)e);
+	xleaf_call(pdev, XRT_GROUP_TRIGGER_EVENT, (void *)(uintptr_t)e);
 
 	/* Triggers event for itself. */
 	evt.xe_evt = e;
 	evt.xe_subdev.xevt_subdev_id = XRT_SUBDEV_GRP;
 	evt.xe_subdev.xevt_subdev_instance = inst;
-	(void)xroot_trigger_event(xr, &evt, false);
+	xroot_trigger_event(xr, &evt, false);
 
-	(void)xroot_put_group(xr, pdev);
+	xroot_put_group(xr, pdev);
 }
 
-int xroot_create_group(struct xroot *xr, char *dtb)
+int xroot_create_group(void *root, char *dtb)
 {
+	struct xroot *xr = (struct xroot *)root;
 	int ret;
 
-	atomic_inc(&xr->grps.bringup_pending);
-	ret = xrt_subdev_pool_add(&xr->grps.pool, XRT_SUBDEV_GRP,
-				  xroot_root_cb, xr, dtb);
+	atomic_inc(&xr->groups.bringup_pending);
+	ret = xrt_subdev_pool_add(&xr->groups.pool, XRT_SUBDEV_GRP, xroot_root_cb, xr, dtb);
 	if (ret >= 0) {
-		schedule_work(&xr->grps.bringup_work);
+		schedule_work(&xr->groups.bringup_work);
 	} else {
-		atomic_dec(&xr->grps.bringup_pending);
-		atomic_inc(&xr->grps.bringup_failed);
+		atomic_dec(&xr->groups.bringup_pending);
+		atomic_inc(&xr->groups.bringup_failed);
 		xroot_err(xr, "failed to create group: %d", ret);
 	}
 	return ret;
@@ -194,12 +193,10 @@ static int xroot_destroy_single_group(struct xroot *xr, int instance)
 	xroot_group_trigger_event(xr, instance, XRT_EVENT_PRE_REMOVAL);
 
 	/* Now tear down all children in this group. */
-	ret = xleaf_ioctl(pdev, XRT_GROUP_FINI_CHILDREN, NULL);
-	(void)xroot_put_group(xr, pdev);
-	if (!ret) {
-		ret = xrt_subdev_pool_del(&xr->grps.pool, XRT_SUBDEV_GRP,
-					  instance);
-	}
+	ret = xleaf_call(pdev, XRT_GROUP_FINI_CHILDREN, NULL);
+	xroot_put_group(xr, pdev);
+	if (!ret)
+		ret = xrt_subdev_pool_del(&xr->groups.pool, XRT_SUBDEV_GRP, instance);
 
 	return ret;
 }
@@ -224,13 +221,14 @@ static int xroot_destroy_group(struct xroot *xr, int instance)
 	 * Assuming subdevs in higher group ID can depend on ones in
 	 * lower ID groups, we remove them in the reservse order.
 	 */
-	while (xroot_get_group(xr, XROOT_GRP_LAST, &deps) != -ENOENT) {
+	while (xroot_get_group(xr, XROOT_GROUP_LAST, &deps) != -ENOENT) {
 		int inst = deps->id;
 
 		xroot_put_group(xr, deps);
+		/* Reached the target group instance, stop here. */
 		if (instance == inst)
 			break;
-		(void)xroot_destroy_single_group(xr, inst);
+		xroot_destroy_single_group(xr, inst);
 		deps = NULL;
 	}
 
@@ -240,16 +238,14 @@ static int xroot_destroy_group(struct xroot *xr, int instance)
 }
 
 static int xroot_lookup_group(struct xroot *xr,
-			      struct xrt_root_ioctl_lookup_group *arg)
+			      struct xrt_root_lookup_group *arg)
 {
 	int rc = -ENOENT;
 	struct platform_device *grp = NULL;
 
-	while (rc < 0 && xroot_get_group(xr, XROOT_GRP_LAST, &grp) != -ENOENT) {
-		if (arg->xpilp_match_cb(XRT_SUBDEV_GRP, grp,
-					arg->xpilp_match_arg)) {
+	while (rc < 0 && xroot_get_group(xr, XROOT_GROUP_LAST, &grp) != -ENOENT) {
+		if (arg->xpilp_match_cb(XRT_SUBDEV_GRP, grp, arg->xpilp_match_arg))
 			rc = grp->id;
-		}
 		xroot_put_group(xr, grp);
 	}
 	return rc;
@@ -262,12 +258,11 @@ static void xroot_event_work(struct work_struct *work)
 
 	mutex_lock(&xr->events.evt_lock);
 	while (!list_empty(&xr->events.evt_list)) {
-		tmp = list_first_entry(&xr->events.evt_list,
-				       struct xroot_evt, list);
+		tmp = list_first_entry(&xr->events.evt_list, struct xroot_evt, list);
 		list_del(&tmp->list);
 		mutex_unlock(&xr->events.evt_lock);
 
-		(void)xrt_subdev_pool_handle_event(&xr->grps.pool, &tmp->evt);
+		xrt_subdev_pool_handle_event(&xr->groups.pool, &tmp->evt);
 
 		if (tmp->async)
 			vfree(tmp);
@@ -292,31 +287,31 @@ static void xroot_event_fini(struct xroot *xr)
 	WARN_ON(!list_empty(&xr->events.evt_list));
 }
 
-static int xroot_get_leaf(struct xroot *xr, struct xrt_root_ioctl_get_leaf *arg)
+static int xroot_get_leaf(struct xroot *xr, struct xrt_root_get_leaf *arg)
 {
 	int rc = -ENOENT;
 	struct platform_device *grp = NULL;
 
-	while (rc && xroot_get_group(xr, XROOT_GRP_LAST, &grp) != -ENOENT) {
-		rc = xleaf_ioctl(grp, XRT_GROUP_GET_LEAF, arg);
+	while (rc && xroot_get_group(xr, XROOT_GROUP_LAST, &grp) != -ENOENT) {
+		rc = xleaf_call(grp, XRT_GROUP_GET_LEAF, arg);
 		xroot_put_group(xr, grp);
 	}
 	return rc;
 }
 
-static int xroot_put_leaf(struct xroot *xr, struct xrt_root_ioctl_put_leaf *arg)
+static int xroot_put_leaf(struct xroot *xr, struct xrt_root_put_leaf *arg)
 {
 	int rc = -ENOENT;
 	struct platform_device *grp = NULL;
 
-	while (rc && xroot_get_group(xr, XROOT_GRP_LAST, &grp) != -ENOENT) {
-		rc = xleaf_ioctl(grp, XRT_GROUP_PUT_LEAF, arg);
+	while (rc && xroot_get_group(xr, XROOT_GROUP_LAST, &grp) != -ENOENT) {
+		rc = xleaf_call(grp, XRT_GROUP_PUT_LEAF, arg);
 		xroot_put_group(xr, grp);
 	}
 	return rc;
 }
 
-static int xroot_root_cb(struct device *dev, void *parg, u32 cmd, void *arg)
+static int xroot_root_cb(struct device *dev, void *parg, enum xrt_root_cmd cmd, void *arg)
 {
 	struct xroot *xr = (struct xroot *)parg;
 	int rc = 0;
@@ -324,21 +319,21 @@ static int xroot_root_cb(struct device *dev, void *parg, u32 cmd, void *arg)
 	switch (cmd) {
 	/* Leaf actions. */
 	case XRT_ROOT_GET_LEAF: {
-		struct xrt_root_ioctl_get_leaf *getleaf =
-			(struct xrt_root_ioctl_get_leaf *)arg;
+		struct xrt_root_get_leaf *getleaf = (struct xrt_root_get_leaf *)arg;
+
 		rc = xroot_get_leaf(xr, getleaf);
 		break;
 	}
 	case XRT_ROOT_PUT_LEAF: {
-		struct xrt_root_ioctl_put_leaf *putleaf =
-			(struct xrt_root_ioctl_put_leaf *)arg;
+		struct xrt_root_put_leaf *putleaf = (struct xrt_root_put_leaf *)arg;
+
 		rc = xroot_put_leaf(xr, putleaf);
 		break;
 	}
 	case XRT_ROOT_GET_LEAF_HOLDERS: {
-		struct xrt_root_ioctl_get_holders *holders =
-			(struct xrt_root_ioctl_get_holders *)arg;
-		rc = xrt_subdev_pool_get_holders(&xr->grps.pool,
+		struct xrt_root_get_holders *holders = (struct xrt_root_get_holders *)arg;
+
+		rc = xrt_subdev_pool_get_holders(&xr->groups.pool,
 						 holders->xpigh_pdev,
 						 holders->xpigh_holder_buf,
 						 holders->xpigh_holder_buf_len);
@@ -353,8 +348,8 @@ static int xroot_root_cb(struct device *dev, void *parg, u32 cmd, void *arg)
 		rc = xroot_destroy_group(xr, (int)(uintptr_t)arg);
 		break;
 	case XRT_ROOT_LOOKUP_GROUP: {
-		struct xrt_root_ioctl_lookup_group *getgrp =
-			(struct xrt_root_ioctl_lookup_group *)arg;
+		struct xrt_root_lookup_group *getgrp = (struct xrt_root_lookup_group *)arg;
+
 		rc = xroot_lookup_group(xr, getgrp);
 		break;
 	}
@@ -363,7 +358,7 @@ static int xroot_root_cb(struct device *dev, void *parg, u32 cmd, void *arg)
 		break;
 
 	/* Event actions. */
-	case XRT_ROOT_EVENT:
+	case XRT_ROOT_EVENT_SYNC:
 	case XRT_ROOT_EVENT_ASYNC: {
 		bool async = (cmd == XRT_ROOT_EVENT_ASYNC);
 		struct xrt_event *evt = (struct xrt_event *)arg;
@@ -374,14 +369,13 @@ static int xroot_root_cb(struct device *dev, void *parg, u32 cmd, void *arg)
 
 	/* Device info. */
 	case XRT_ROOT_GET_RESOURCE: {
-		struct xrt_root_ioctl_get_res *res =
-			(struct xrt_root_ioctl_get_res *)arg;
+		struct xrt_root_get_res *res = (struct xrt_root_get_res *)arg;
+
 		res->xpigr_res = xr->pdev->resource;
 		break;
 	}
 	case XRT_ROOT_GET_ID: {
-		struct xrt_root_ioctl_get_id *id =
-			(struct xrt_root_ioctl_get_id *)arg;
+		struct xrt_root_get_id *id = (struct xrt_root_get_id *)arg;
 
 		id->xpigi_vendor_id = xr->pdev->vendor;
 		id->xpigi_device_id = xr->pdev->device;
@@ -396,8 +390,7 @@ static int xroot_root_cb(struct device *dev, void *parg, u32 cmd, void *arg)
 		break;
 	}
 	case XRT_ROOT_HWMON: {
-		struct xrt_root_ioctl_hwmon *hwmon =
-			(struct xrt_root_ioctl_hwmon *)arg;
+		struct xrt_root_hwmon *hwmon = (struct xrt_root_hwmon *)arg;
 
 		if (hwmon->xpih_register) {
 			hwmon->xpih_hwmon_dev =
@@ -407,7 +400,7 @@ static int xroot_root_cb(struct device *dev, void *parg, u32 cmd, void *arg)
 								NULL,
 								hwmon->xpih_groups);
 		} else {
-			(void)hwmon_device_unregister(hwmon->xpih_hwmon_dev);
+			hwmon_device_unregister(hwmon->xpih_hwmon_dev);
 		}
 		break;
 	}
@@ -424,51 +417,51 @@ static int xroot_root_cb(struct device *dev, void *parg, u32 cmd, void *arg)
 static void xroot_bringup_group_work(struct work_struct *work)
 {
 	struct platform_device *pdev = NULL;
-	struct xroot *xr = container_of(work, struct xroot, grps.bringup_work);
+	struct xroot *xr = container_of(work, struct xroot, groups.bringup_work);
 
-	while (xroot_get_group(xr, XROOT_GRP_FIRST, &pdev) != -ENOENT) {
+	while (xroot_get_group(xr, XROOT_GROUP_FIRST, &pdev) != -ENOENT) {
 		int r, i;
 
 		i = pdev->id;
-		r = xleaf_ioctl(pdev, XRT_GROUP_INIT_CHILDREN, NULL);
-		(void)xroot_put_group(xr, pdev);
+		r = xleaf_call(pdev, XRT_GROUP_INIT_CHILDREN, NULL);
+		xroot_put_group(xr, pdev);
 		if (r == -EEXIST)
 			continue; /* Already brough up, nothing to do. */
 		if (r)
-			atomic_inc(&xr->grps.bringup_failed);
+			atomic_inc(&xr->groups.bringup_failed);
 
 		xroot_group_trigger_event(xr, i, XRT_EVENT_POST_CREATION);
 
-		if (atomic_dec_and_test(&xr->grps.bringup_pending))
-			complete(&xr->grps.bringup_comp);
+		if (atomic_dec_and_test(&xr->groups.bringup_pending))
+			complete(&xr->groups.bringup_comp);
 	}
 }
 
-static void xroot_grps_init(struct xroot *xr)
+static void xroot_groups_init(struct xroot *xr)
 {
-	xrt_subdev_pool_init(DEV(xr->pdev), &xr->grps.pool);
-	INIT_WORK(&xr->grps.bringup_work, xroot_bringup_group_work);
-	atomic_set(&xr->grps.bringup_pending, 0);
-	atomic_set(&xr->grps.bringup_failed, 0);
-	init_completion(&xr->grps.bringup_comp);
+	xrt_subdev_pool_init(DEV(xr->pdev), &xr->groups.pool);
+	INIT_WORK(&xr->groups.bringup_work, xroot_bringup_group_work);
+	atomic_set(&xr->groups.bringup_pending, 0);
+	atomic_set(&xr->groups.bringup_failed, 0);
+	init_completion(&xr->groups.bringup_comp);
 }
 
-static void xroot_grps_fini(struct xroot *xr)
+static void xroot_groups_fini(struct xroot *xr)
 {
 	flush_scheduled_work();
-	(void)xrt_subdev_pool_fini(&xr->grps.pool);
+	xrt_subdev_pool_fini(&xr->groups.pool);
 }
 
-int xroot_add_vsec_node(struct xroot *xr, char *dtb)
+int xroot_add_vsec_node(void *root, char *dtb)
 {
+	struct xroot *xr = (struct xroot *)root;
 	struct device *dev = DEV(xr->pdev);
 	struct xrt_md_endpoint ep = { 0 };
 	int cap = 0, ret = 0;
 	u32 off_low, off_high, vsec_bar, header;
 	u64 vsec_off;
 
-	while ((cap = pci_find_next_ext_capability(xr->pdev, cap,
-						   PCI_EXT_CAP_ID_VNDR))) {
+	while ((cap = pci_find_next_ext_capability(xr->pdev, cap, PCI_EXT_CAP_ID_VNDR))) {
 		pci_read_config_dword(xr->pdev, cap + PCI_VNDR_HEADER, &header);
 		if (PCI_VNDR_HEADER_ID(header) == XRT_VSEC_ID)
 			break;
@@ -484,7 +477,7 @@ int xroot_add_vsec_node(struct xroot *xr, char *dtb)
 		return -EINVAL;
 	}
 
-	ep.ep_name = NODE_VSEC;
+	ep.ep_name = XRT_MD_NODE_VSEC;
 	ret = xrt_md_add_endpoint(dev, dtb, &ep);
 	if (ret) {
 		xroot_err(xr, "add vsec metadata failed, ret %d", ret);
@@ -492,16 +485,16 @@ int xroot_add_vsec_node(struct xroot *xr, char *dtb)
 	}
 
 	vsec_bar = cpu_to_be32(off_low & 0xf);
-	ret = xrt_md_set_prop(dev, dtb, NODE_VSEC, NULL,
-			      PROP_BAR_IDX, &vsec_bar, sizeof(vsec_bar));
+	ret = xrt_md_set_prop(dev, dtb, XRT_MD_NODE_VSEC, NULL,
+			      XRT_MD_PROP_BAR_IDX, &vsec_bar, sizeof(vsec_bar));
 	if (ret) {
 		xroot_err(xr, "add vsec bar idx failed, ret %d", ret);
 		goto failed;
 	}
 
 	vsec_off = cpu_to_be64(((u64)off_high << 32) | (off_low & ~0xfU));
-	ret = xrt_md_set_prop(dev, dtb, NODE_VSEC, NULL,
-			      PROP_OFFSET, &vsec_off, sizeof(vsec_off));
+	ret = xrt_md_set_prop(dev, dtb, XRT_MD_NODE_VSEC, NULL,
+			      XRT_MD_PROP_OFFSET, &vsec_off, sizeof(vsec_off));
 	if (ret) {
 		xroot_err(xr, "add vsec offset failed, ret %d", ret);
 		goto failed;
@@ -512,8 +505,9 @@ failed:
 }
 EXPORT_SYMBOL_GPL(xroot_add_vsec_node);
 
-int xroot_add_simple_node(struct xroot *xr, char *dtb, const char *endpoint)
+int xroot_add_simple_node(void *root, char *dtb, const char *endpoint)
 {
+	struct xroot *xr = (struct xroot *)root;
 	struct device *dev = DEV(xr->pdev);
 	struct xrt_md_endpoint ep = { 0 };
 	int ret = 0;
@@ -527,15 +521,16 @@ int xroot_add_simple_node(struct xroot *xr, char *dtb, const char *endpoint)
 }
 EXPORT_SYMBOL_GPL(xroot_add_simple_node);
 
-bool xroot_wait_for_bringup(struct xroot *xr)
+bool xroot_wait_for_bringup(void *root)
 {
-	wait_for_completion(&xr->grps.bringup_comp);
-	return atomic_xchg(&xr->grps.bringup_failed, 0) == 0;
+	struct xroot *xr = (struct xroot *)root;
+
+	wait_for_completion(&xr->groups.bringup_comp);
+	return atomic_read(&xr->groups.bringup_failed) == 0;
 }
 EXPORT_SYMBOL_GPL(xroot_wait_for_bringup);
 
-int xroot_probe(struct pci_dev *pdev, struct xroot_pf_cb *cb,
-		struct xroot **root)
+int xroot_probe(struct pci_dev *pdev, struct xroot_physical_function_callback *cb, void **root)
 {
 	struct device *dev = DEV(pdev);
 	struct xroot *xr = NULL;
@@ -548,7 +543,7 @@ int xroot_probe(struct pci_dev *pdev, struct xroot_pf_cb *cb,
 
 	xr->pdev = pdev;
 	xr->pf_cb = *cb;
-	xroot_grps_init(xr);
+	xroot_groups_init(xr);
 	xroot_event_init(xr);
 
 	*root = xr;
@@ -556,26 +551,28 @@ int xroot_probe(struct pci_dev *pdev, struct xroot_pf_cb *cb,
 }
 EXPORT_SYMBOL_GPL(xroot_probe);
 
-void xroot_remove(struct xroot *xr)
+void xroot_remove(void *root)
 {
+	struct xroot *xr = (struct xroot *)root;
 	struct platform_device *grp = NULL;
 
 	xroot_info(xr, "leaving...");
 
-	if (xroot_get_group(xr, XROOT_GRP_FIRST, &grp) == 0) {
+	if (xroot_get_group(xr, XROOT_GROUP_FIRST, &grp) == 0) {
 		int instance = grp->id;
 
 		xroot_put_group(xr, grp);
-		(void)xroot_destroy_group(xr, instance);
+		xroot_destroy_group(xr, instance);
 	}
 
 	xroot_event_fini(xr);
-	xroot_grps_fini(xr);
+	xroot_groups_fini(xr);
 }
 EXPORT_SYMBOL_GPL(xroot_remove);
 
-void xroot_broadcast(struct xroot *xr, enum xrt_events evt)
+void xroot_broadcast(void *root, enum xrt_events evt)
 {
+	struct xroot *xr = (struct xroot *)root;
 	struct xrt_event e = { 0 };
 
 	/* Root pf driver only broadcasts below two events. */
@@ -587,6 +584,6 @@ void xroot_broadcast(struct xroot *xr, enum xrt_events evt)
 	e.xe_evt = evt;
 	e.xe_subdev.xevt_subdev_id = XRT_ROOT;
 	e.xe_subdev.xevt_subdev_instance = 0;
-	(void)xroot_trigger_event(xr, &e, false);
+	xroot_trigger_event(xr, &e, false);
 }
 EXPORT_SYMBOL_GPL(xroot_broadcast);

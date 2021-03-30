@@ -12,10 +12,10 @@
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 #include <linux/device.h>
+#include <linux/regmap.h>
 #include <linux/io.h>
 #include "metadata.h"
 #include "xleaf.h"
-#include "xleaf/ucs.h"
 #include "xleaf/clock.h"
 
 #define UCS_ERR(ucs, fmt, arg...)   \
@@ -29,46 +29,36 @@
 
 #define XRT_UCS		"xrt_ucs"
 
-#define CHANNEL1_OFFSET			0
-#define CHANNEL2_OFFSET			8
+#define XRT_UCS_CHANNEL1_REG			0
+#define XRT_UCS_CHANNEL2_REG			8
 
 #define CLK_MAX_VALUE			6400
 
-struct ucs_control_status_ch1 {
-	unsigned int shutdown_clocks_latched:1;
-	unsigned int reserved1:15;
-	unsigned int clock_throttling_average:14;
-	unsigned int reserved2:2;
+static const struct regmap_config ucs_regmap_config = {
+	.reg_bits = 32,
+	.val_bits = 32,
+	.reg_stride = 4,
+	.max_register = 0x1000,
 };
 
 struct xrt_ucs {
 	struct platform_device	*pdev;
-	void __iomem		*ucs_base;
+	struct regmap		*regmap;
 	struct mutex		ucs_lock; /* ucs dev lock */
 };
 
-static inline u32 reg_rd(struct xrt_ucs *ucs, u32 offset)
-{
-	return ioread32(ucs->ucs_base + offset);
-}
-
-static inline void reg_wr(struct xrt_ucs *ucs, u32 val, u32 offset)
-{
-	iowrite32(val, ucs->ucs_base + offset);
-}
-
 static void xrt_ucs_event_cb(struct platform_device *pdev, void *arg)
 {
-	struct platform_device	*leaf;
 	struct xrt_event *evt = (struct xrt_event *)arg;
 	enum xrt_events e = evt->xe_evt;
-	enum xrt_subdev_id id = evt->xe_subdev.xevt_subdev_id;
-	int instance = evt->xe_subdev.xevt_subdev_instance;
+	struct platform_device *leaf;
+	enum xrt_subdev_id id;
+	int instance;
 
-	switch (e) {
-	case XRT_EVENT_POST_CREATION:
-		break;
-	default:
+	id = evt->xe_subdev.xevt_subdev_id;
+	instance = evt->xe_subdev.xevt_subdev_instance;
+
+	if (e != XRT_EVENT_POST_CREATION) {
 		xrt_dbg(pdev, "ignored event %d", e);
 		return;
 	}
@@ -82,85 +72,32 @@ static void xrt_ucs_event_cb(struct platform_device *pdev, void *arg)
 		return;
 	}
 
-	xleaf_ioctl(leaf, XRT_CLOCK_VERIFY, NULL);
+	xleaf_call(leaf, XRT_CLOCK_VERIFY, NULL);
 	xleaf_put_leaf(pdev, leaf);
 }
 
-static void ucs_check(struct xrt_ucs *ucs, bool *latched)
+static int ucs_enable(struct xrt_ucs *ucs)
 {
-	struct ucs_control_status_ch1 *ucs_status_ch1;
-	u32 status;
+	int ret;
 
 	mutex_lock(&ucs->ucs_lock);
-	status = reg_rd(ucs, CHANNEL1_OFFSET);
-	ucs_status_ch1 = (struct ucs_control_status_ch1 *)&status;
-	if (ucs_status_ch1->shutdown_clocks_latched) {
-		UCS_ERR(ucs,
-			"Critical temperature or power event, kernel clocks have been stopped.");
-		UCS_ERR(ucs,
-			"run 'xbutil valiate -q' to continue. See AR 73398 for more details.");
-		/* explicitly indicate reset should be latched */
-		*latched = true;
-	} else if (ucs_status_ch1->clock_throttling_average >
-	    CLK_MAX_VALUE) {
-		UCS_ERR(ucs, "kernel clocks %d exceeds expected maximum value %d.",
-			ucs_status_ch1->clock_throttling_average,
-			CLK_MAX_VALUE);
-	} else if (ucs_status_ch1->clock_throttling_average) {
-		UCS_ERR(ucs, "kernel clocks throttled at %d%%.",
-			(ucs_status_ch1->clock_throttling_average /
-			 (CLK_MAX_VALUE / 100)));
-	}
+	ret = regmap_write(ucs->regmap, XRT_UCS_CHANNEL2_REG, 1);
 	mutex_unlock(&ucs->ucs_lock);
-}
 
-static void ucs_enable(struct xrt_ucs *ucs)
-{
-	reg_wr(ucs, 1, CHANNEL2_OFFSET);
+	return ret;
 }
 
 static int
-xrt_ucs_leaf_ioctl(struct platform_device *pdev, u32 cmd, void *arg)
+xrt_ucs_leaf_call(struct platform_device *pdev, u32 cmd, void *arg)
 {
-	struct xrt_ucs		*ucs;
-	int			ret = 0;
-
-	ucs = platform_get_drvdata(pdev);
-
 	switch (cmd) {
 	case XRT_XLEAF_EVENT:
 		xrt_ucs_event_cb(pdev, arg);
-		break;
-	case XRT_UCS_CHECK: {
-		ucs_check(ucs, (bool *)arg);
-		break;
-	}
-	case XRT_UCS_ENABLE:
-		ucs_enable(ucs);
 		break;
 	default:
 		xrt_err(pdev, "unsupported cmd %d", cmd);
 		return -EINVAL;
 	}
-
-	return ret;
-}
-
-static int ucs_remove(struct platform_device *pdev)
-{
-	struct xrt_ucs *ucs;
-
-	ucs = platform_get_drvdata(pdev);
-	if (!ucs) {
-		xrt_err(pdev, "driver data is NULL");
-		return -EINVAL;
-	}
-
-	if (ucs->ucs_base)
-		iounmap(ucs->ucs_base);
-
-	platform_set_drvdata(pdev, NULL);
-	devm_kfree(&pdev->dev, ucs);
 
 	return 0;
 }
@@ -168,8 +105,8 @@ static int ucs_remove(struct platform_device *pdev)
 static int ucs_probe(struct platform_device *pdev)
 {
 	struct xrt_ucs *ucs = NULL;
+	void __iomem *base = NULL;
 	struct resource *res;
-	int ret;
 
 	ucs = devm_kzalloc(&pdev->dev, sizeof(*ucs), GFP_KERNEL);
 	if (!ucs)
@@ -180,25 +117,27 @@ static int ucs_probe(struct platform_device *pdev)
 	mutex_init(&ucs->ucs_lock);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	ucs->ucs_base = ioremap(res->start, res->end - res->start + 1);
-	if (!ucs->ucs_base) {
+	if (!res)
+		return -EINVAL;
+
+	base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(base))
+		return PTR_ERR(base);
+
+	ucs->regmap = devm_regmap_init_mmio(&pdev->dev, base, &ucs_regmap_config);
+	if (IS_ERR(ucs->regmap)) {
 		UCS_ERR(ucs, "map base %pR failed", res);
-		ret = -EFAULT;
-		goto failed;
+		return PTR_ERR(ucs->regmap);
 	}
 	ucs_enable(ucs);
 
 	return 0;
-
-failed:
-	ucs_remove(pdev);
-	return ret;
 }
 
-struct xrt_subdev_endpoints xrt_ucs_endpoints[] = {
+static struct xrt_subdev_endpoints xrt_ucs_endpoints[] = {
 	{
 		.xse_names = (struct xrt_subdev_ep_names[]) {
-			{ .ep_name = NODE_UCS_CONTROL_STATUS },
+			{ .ep_name = XRT_MD_NODE_UCS_CONTROL_STATUS },
 			{ NULL },
 		},
 		.xse_min_ep = 1,
@@ -208,7 +147,7 @@ struct xrt_subdev_endpoints xrt_ucs_endpoints[] = {
 
 static struct xrt_subdev_drvdata xrt_ucs_data = {
 	.xsd_dev_ops = {
-		.xsd_ioctl = xrt_ucs_leaf_ioctl,
+		.xsd_leaf_call = xrt_ucs_leaf_call,
 	},
 };
 
@@ -217,11 +156,12 @@ static const struct platform_device_id xrt_ucs_table[] = {
 	{ },
 };
 
-struct platform_driver xrt_ucs_driver = {
+static struct platform_driver xrt_ucs_driver = {
 	.driver = {
 		.name = XRT_UCS,
 	},
 	.probe = ucs_probe,
-	.remove = ucs_remove,
 	.id_table = xrt_ucs_table,
 };
+
+XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_UCS, ucs);

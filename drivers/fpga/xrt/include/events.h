@@ -1,24 +1,21 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Header file for Xilinx Runtime (XRT) driver
- *
  * Copyright (C) 2020-2021 Xilinx, Inc.
  *
  * Authors:
  *	Cheng Zhen <maxz@xilinx.com>
  */
 
-#ifndef	_XRT_EVENTS_H_
-#define	_XRT_EVENTS_H_
+#ifndef _XRT_EVENTS_H_
+#define _XRT_EVENTS_H_
 
-#include <linux/platform_device.h>
 #include "subdev_id.h"
 
 /*
  * Event notification.
  */
 enum xrt_events {
-	XRT_EVENT_TEST = 0, // for testing
+	XRT_EVENT_TEST = 0, /* for testing */
 	/*
 	 * Events related to specific subdev
 	 * Callback arg: struct xrt_event_arg_subdev
@@ -42,9 +39,7 @@ struct xrt_event_arg_subdev {
 
 struct xrt_event {
 	enum xrt_events xe_evt;
-	union {
-		struct xrt_event_arg_subdev xe_subdev;
-	};
+	struct xrt_event_arg_subdev xe_subdev;
 };
 
 #endif	/* _XRT_EVENTS_H_ */
