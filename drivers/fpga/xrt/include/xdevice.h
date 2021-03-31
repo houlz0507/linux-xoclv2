@@ -9,6 +9,9 @@
 #ifndef _XRT_DEVICE_H_
 #define _XRT_DEVICE_H_
 
+#include <linux/fs.h>
+#include <linux/cdev.h>
+
 #define XRT_MAX_DEVICE_NODES		128
 #define XRT_INVALID_DEVICE_INST		(XRT_MAX_DEVICE_NODES + 1)
 
@@ -22,18 +25,36 @@ enum {
  *
  * dev: generic device interface.
  * id: id of the xrt device.
- * id_entry: matched id entry in xrt driver's id table.
  */
 struct xrt_device {
 	struct device dev;
 	u32 subdev_id;
 	const char *name;
 	u32 instance;
-	const struct xrt_device_id *id_entry;
 	u32 state;
 	u32 num_resources;
 	struct resource *resource;
 	void *sdev_data;
+};
+
+/*
+ * If populated by xrt device driver, infra will handle the mechanics of
+ * char device (un)registration.
+ */
+enum xrt_dev_file_mode {
+        /* Infra create cdev, default file name */
+        XRT_DEV_FILE_DEFAULT = 0,
+        /* Infra create cdev, need to encode inst num in file name */
+        XRT_DEV_FILE_MULTI_INST,
+        /* No auto creation of cdev by infra, leaf handles it by itself */
+        XRT_DEV_FILE_NO_AUTO,
+};
+
+struct xrt_dev_file_ops {
+	const struct file_operations xsf_ops;
+	dev_t xsf_dev_t;
+	const char *xsf_dev_name;
+	enum xrt_dev_file_mode xsf_mode;
 };
 
 /*
@@ -47,16 +68,23 @@ struct xrt_device {
  */
 struct xrt_driver {
 	struct device_driver driver;
-	const struct xrt_device_id *id_table;
+	u32 subdev_id;
+	struct xrt_dev_file_ops file_ops;
 
+	/*
+	 * Subdev driver callbacks populated by subdev driver.
+	 */
 	int (*probe)(struct xrt_device *xrt_dev);
 	void (*remove)(struct xrt_device *xrt_dev);
+	/*
+	 * If leaf_call is defined, these are called by other leaf drivers.
+         * Note that root driver may call into leaf_call of a group driver.
+         */
+	int (*leaf_call)(struct xrt_device *xrt_dev, u32 cmd, void *arg);
 };
 
 #define to_xrt_dev(d) container_of(d, struct xrt_device, dev)
 #define to_xrt_drv(d) container_of(d, struct xrt_driver, driver)
-
-#define xrt_get_device_id(xdev)	((xdev)->id_entry)
 
 static inline void *xrt_get_drvdata(const struct xrt_device *xdev)
 {

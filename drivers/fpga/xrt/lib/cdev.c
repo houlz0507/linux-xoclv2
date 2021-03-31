@@ -139,18 +139,17 @@ void xleaf_devnode_close(struct inode *inode)
 }
 EXPORT_SYMBOL_GPL(xleaf_devnode_close);
 
-static inline enum xrt_subdev_file_mode
-devnode_mode(struct xrt_subdev_drvdata *drvdata)
+static inline enum xrt_dev_file_mode
+devnode_mode(struct xrt_device *xdev)
 {
-	return drvdata->xsd_file_ops.xsf_mode;
+	return DEV_FILE_OPS(xdev)->xsf_mode;
 }
 
 int xleaf_devnode_create(struct xrt_device *xdev, const char *file_name,
 			 const char *inst_name)
 {
-	struct xrt_subdev_drvdata *drvdata = DEV_DRVDATA(xdev);
-	struct xrt_subdev_file_ops *fops = &drvdata->xsd_file_ops;
 	struct xrt_subdev_platdata *pdata = DEV_PDATA(xdev);
+	struct xrt_dev_file_ops *fops = DEV_FILE_OPS(xdev);
 	struct cdev *cdevp;
 	struct device *sysdev;
 	int ret = 0;
@@ -178,7 +177,7 @@ int xleaf_devnode_create(struct xrt_device *xdev, const char *file_name,
 	if (!file_name)
 		file_name = xdev->name;
 	if (!inst_name) {
-		if (devnode_mode(drvdata) == XRT_SUBDEV_FILE_MULTI_INST) {
+		if (devnode_mode(xdev) == XRT_DEV_FILE_MULTI_INST) {
 			snprintf(fname, sizeof(fname), "%s/%s/%s.%u",
 				 XRT_CDEV_DIR, DEV_PDATA(xdev)->xsp_root_name,
 				 file_name, xdev->instance);

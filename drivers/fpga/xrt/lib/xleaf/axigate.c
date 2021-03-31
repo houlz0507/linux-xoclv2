@@ -319,23 +319,13 @@ static struct xrt_subdev_endpoints xrt_axigate_endpoints[] = {
 	{ 0 },
 };
 
-static struct xrt_subdev_drvdata xrt_axigate_data = {
-	.xsd_dev_ops = {
-		.xsd_leaf_call = xrt_axigate_leaf_call,
-	},
-};
-
-static const struct xrt_device_id xrt_axigate_table[] = {
-	{ XRT_SUBDEV_AXIGATE, (kernel_ulong_t)&xrt_axigate_data },
-	{ },
-};
-
 static struct xrt_driver xrt_axigate_driver = {
 	.driver = {
 		.name = XRT_AXIGATE,
 	},
+	.subdev_id = XRT_SUBDEV_AXIGATE,
 	.probe = xrt_axigate_probe,
-	.id_table = xrt_axigate_table,
+	.leaf_call = xrt_axigate_leaf_call,
 };
 
 XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_AXIGATE, axigate);

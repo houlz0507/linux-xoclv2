@@ -35,12 +35,6 @@ static DEFINE_MUTEX(xrt_lib_lock); /* global lock protecting xrt_drv_maps list *
 static LIST_HEAD(xrt_drv_maps);
 struct class *xrt_class;
 
-static inline struct xrt_subdev_drvdata *
-xrt_drv_map2drvdata(struct xrt_drv_map *map)
-{
-	return (struct xrt_subdev_drvdata *)map->drv->id_table[0].driver_data;
-}
-
 static struct xrt_drv_map *
 __xrt_drv_find_map_by_id(enum xrt_subdev_id id)
 {
@@ -71,9 +65,8 @@ xrt_drv_find_map_by_id(enum xrt_subdev_id id)
 
 static int xrt_drv_register_driver(struct xrt_drv_map *map)
 {
-	struct xrt_subdev_drvdata *drvdata;
-	int rc = 0;
 	const char *drvname = XRT_DRVNAME(map->drv);
+	int rc = 0;
 
 	rc = xrt_driver_register(map->drv);
 	if (rc) {
@@ -81,20 +74,17 @@ static int xrt_drv_register_driver(struct xrt_drv_map *map)
 		return rc;
 	}
 
-	drvdata = xrt_drv_map2drvdata(map);
-	if (drvdata) {
-		/* Initialize dev_t for char dev node. */
-		if (xleaf_devnode_enabled(drvdata)) {
-			rc = alloc_chrdev_region(&drvdata->xsd_file_ops.xsf_dev_t, 0,
-						 XRT_MAX_DEVICE_NODES, drvname);
-			if (rc) {
-				xrt_driver_unregister(map->drv);
-				pr_err("failed to alloc dev minor for %s: %d\n", drvname, rc);
-				return rc;
-			}
-		} else {
-			drvdata->xsd_file_ops.xsf_dev_t = (dev_t)-1;
+	/* Initialize dev_t for char dev node. */
+	if (map->drv->file_ops.xsf_ops.open) {
+		rc = alloc_chrdev_region(&map->drv->file_ops.xsf_dev_t, 0,
+					 XRT_MAX_DEVICE_NODES, drvname);
+		if (rc) {
+			xrt_driver_unregister(map->drv);
+			pr_err("failed to alloc dev minor for %s: %d\n", drvname, rc);
+			return rc;
 		}
+	} else {
+		map->drv->file_ops.xsf_dev_t = (dev_t)-1;
 	}
 
 	ida_init(&map->ida);
@@ -107,13 +97,11 @@ static int xrt_drv_register_driver(struct xrt_drv_map *map)
 static void xrt_drv_unregister_driver(struct xrt_drv_map *map)
 {
 	const char *drvname = XRT_DRVNAME(map->drv);
-	struct xrt_subdev_drvdata *drvdata;
 
 	ida_destroy(&map->ida);
 
-	drvdata = xrt_drv_map2drvdata(map);
-	if (drvdata && drvdata->xsd_file_ops.xsf_dev_t != (dev_t)-1) {
-		unregister_chrdev_region(drvdata->xsd_file_ops.xsf_dev_t,
+	if (map->drv->file_ops.xsf_dev_t != (dev_t)-1) {
+		unregister_chrdev_region(map->drv->file_ops.xsf_dev_t,
 					 XRT_MAX_DEVICE_NODES);
 	}
 
@@ -221,16 +209,9 @@ static int xrt_bus_match(struct device *dev, struct device_driver *drv)
 {
 	struct xrt_device *xdev = to_xrt_dev(dev);
 	struct xrt_driver *xdrv = to_xrt_drv(drv);
-	const struct xrt_device_id *id_entry;
 
-	id_entry = xdrv->id_table;
-	while (id_entry && id_entry->subdev_id) {
-		if (xdev->subdev_id == id_entry->subdev_id) {
-			xdev->id_entry = id_entry;
-			return 1;
-		}
-		id_entry++;
-	}
+	if (xdev->subdev_id == xdrv->subdev_id)
+		return 1;
 
 	return 0;
 }

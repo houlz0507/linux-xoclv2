@@ -628,11 +628,11 @@ static struct xrt_subdev_endpoints xrt_mgmt_main_endpoints[] = {
 	{ 0 },
 };
 
-static struct xrt_subdev_drvdata xmgmt_main_data = {
-	.xsd_dev_ops = {
-		.xsd_leaf_call = xmgmt_mainleaf_call,
+static struct xrt_driver xmgmt_main_driver = {
+	.driver	= {
+		.name = XMGMT_MAIN,
 	},
-	.xsd_file_ops = {
+	.file_ops = {
 		.xsf_ops = {
 			.owner = THIS_MODULE,
 			.open = xmgmt_main_open,
@@ -641,20 +641,10 @@ static struct xrt_subdev_drvdata xmgmt_main_data = {
 		},
 		.xsf_dev_name = "xmgmt",
 	},
-};
-
-static const struct xrt_device_id xmgmt_main_id_table[] = {
-	{ XRT_SUBDEV_MGMT_MAIN, (kernel_ulong_t)&xmgmt_main_data },
-	{ },
-};
-
-static struct xrt_driver xmgmt_main_driver = {
-	.driver	= {
-		.name    = XMGMT_MAIN,
-	},
-	.probe   = xmgmt_main_probe,
-	.remove  = xmgmt_main_remove,
-	.id_table = xmgmt_main_id_table,
+	.subdev_id = XRT_SUBDEV_MGMT_MAIN,
+	.probe = xmgmt_main_probe,
+	.remove = xmgmt_main_remove,
+	.leaf_call = xmgmt_mainleaf_call,
 };
 
 int xmgmt_register_leaf(void)

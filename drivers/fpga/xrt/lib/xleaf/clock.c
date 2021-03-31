@@ -643,24 +643,14 @@ static struct xrt_subdev_endpoints xrt_clock_endpoints[] = {
 	{ 0 },
 };
 
-static struct xrt_subdev_drvdata xrt_clock_data = {
-	.xsd_dev_ops = {
-		.xsd_leaf_call = xrt_clock_leaf_call,
-	},
-};
-
-static const struct xrt_device_id xrt_clock_table[] = {
-	{ XRT_SUBDEV_CLOCK, (kernel_ulong_t)&xrt_clock_data },
-	{ },
-};
-
 static struct xrt_driver xrt_clock_driver = {
 	.driver = {
 		.name = XRT_CLOCK,
 	},
+	.subdev_id = XRT_SUBDEV_CLOCK,
 	.probe = clock_probe,
 	.remove = clock_remove,
-	.id_table = xrt_clock_table,
+	.leaf_call = xrt_clock_leaf_call,
 };
 
 XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_CLOCK, clock);

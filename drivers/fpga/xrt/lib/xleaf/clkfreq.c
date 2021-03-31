@@ -214,24 +214,14 @@ static struct xrt_subdev_endpoints xrt_clkfreq_endpoints[] = {
 	{ 0 },
 };
 
-static struct xrt_subdev_drvdata xrt_clkfreq_data = {
-	.xsd_dev_ops = {
-		.xsd_leaf_call = xrt_clkfreq_leaf_call,
-	},
-};
-
-static const struct xrt_device_id xrt_clkfreq_table[] = {
-	{ XRT_SUBDEV_CLKFREQ, (kernel_ulong_t)&xrt_clkfreq_data },
-	{ },
-};
-
 static struct xrt_driver xrt_clkfreq_driver = {
 	.driver = {
 		.name = XRT_CLKFREQ,
 	},
+	.subdev_id = XRT_SUBDEV_CLKFREQ,
 	.probe = clkfreq_probe,
 	.remove = clkfreq_remove,
-	.id_table = xrt_clkfreq_table,
+	.leaf_call = xrt_clkfreq_leaf_call,
 };
 
 XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_CLKFREQ, clkfreq);

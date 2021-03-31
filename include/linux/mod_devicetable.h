@@ -838,14 +838,4 @@ struct mhi_device_id {
 	kernel_ulong_t driver_data;
 };
 
-/*
- * struct xrt_device_id - identifies devices on a XRT bus
- * @subdev_id: xrt sub device identifier. See enum xrt_subdev_id.
- * @driver_data: driver private data
- */
-struct xrt_device_id {
-	__u32 subdev_id;
-	kernel_ulong_t driver_data;
-};
-
 #endif /* LINUX_MOD_DEVICETABLE_H */

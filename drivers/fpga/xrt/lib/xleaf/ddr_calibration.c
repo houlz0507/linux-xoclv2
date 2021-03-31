@@ -201,24 +201,14 @@ static struct xrt_subdev_endpoints xrt_calib_endpoints[] = {
 	{ 0 },
 };
 
-static struct xrt_subdev_drvdata xrt_calib_data = {
-	.xsd_dev_ops = {
-		.xsd_leaf_call = xrt_calib_leaf_call,
-	},
-};
-
-static const struct xrt_device_id xrt_calib_table[] = {
-	{ XRT_SUBDEV_CALIB, (kernel_ulong_t)&xrt_calib_data },
-	{ },
-};
-
 static struct xrt_driver xrt_calib_driver = {
 	.driver = {
 		.name = XRT_CALIB,
 	},
+	.subdev_id = XRT_SUBDEV_CALIB,
 	.probe = xrt_calib_probe,
 	.remove = xrt_calib_remove,
-	.id_table = xrt_calib_table,
+	.leaf_call = xrt_calib_leaf_call,
 };
 
 XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_CALIB, calib);

@@ -321,23 +321,13 @@ static struct xrt_subdev_endpoints xrt_icap_endpoints[] = {
 	{ 0 },
 };
 
-static struct xrt_subdev_drvdata xrt_icap_data = {
-	.xsd_dev_ops = {
-		.xsd_leaf_call = xrt_icap_leaf_call,
-	},
-};
-
-static const struct xrt_device_id xrt_icap_table[] = {
-	{ XRT_SUBDEV_ICAP, (kernel_ulong_t)&xrt_icap_data },
-	{ },
-};
-
 static struct xrt_driver xrt_icap_driver = {
 	.driver = {
 		.name = XRT_ICAP,
 	},
+	.subdev_id = XRT_SUBDEV_ICAP,
 	.probe = xrt_icap_probe,
-	.id_table = xrt_icap_table,
+	.leaf_call = xrt_icap_leaf_call,
 };
 
 XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_ICAP, icap);

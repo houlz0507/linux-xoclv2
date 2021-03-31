@@ -11,8 +11,6 @@
 #define _XRT_XLEAF_H_
 
 #include <linux/mod_devicetable.h>
-#include <linux/fs.h>
-#include <linux/cdev.h>
 #include "xdevice.h"
 #include "subdev_id.h"
 #include "xroot.h"
@@ -22,9 +20,8 @@
 #define DEV(xdev)	(&(xdev)->dev)
 #define DEV_PDATA(xdev)					\
 	((struct xrt_subdev_platdata *)xrt_get_xdev_data(DEV(xdev)))
-#define DEV_DRVDATA(xdev)				\
-	((struct xrt_subdev_drvdata *)			\
-	xrt_get_device_id(xdev)->driver_data)
+#define DEV_FILE_OPS(xdev)				\
+	(&(to_xrt_drv(xdev->dev.driver))->file_ops)
 #define FMT_PRT(prt_fn, xdev, fmt, args...)		\
 	({typeof(xdev) (_xdev) = (xdev);		\
 	prt_fn(DEV(_xdev), "%s %s: " fmt,		\
@@ -43,47 +40,6 @@ enum {
 
 enum xrt_xleaf_common_leaf_cmd {
 	XRT_XLEAF_EVENT = XRT_XLEAF_COMMON_BASE,
-};
-
-/*
- * If populated by subdev driver, infra will handle the mechanics of
- * char device (un)registration.
- */
-enum xrt_subdev_file_mode {
-	/* Infra create cdev, default file name */
-	XRT_SUBDEV_FILE_DEFAULT = 0,
-	/* Infra create cdev, need to encode inst num in file name */
-	XRT_SUBDEV_FILE_MULTI_INST,
-	/* No auto creation of cdev by infra, leaf handles it by itself */
-	XRT_SUBDEV_FILE_NO_AUTO,
-};
-
-struct xrt_subdev_file_ops {
-	const struct file_operations xsf_ops;
-	dev_t xsf_dev_t;
-	const char *xsf_dev_name;
-	enum xrt_subdev_file_mode xsf_mode;
-};
-
-/*
- * Subdev driver callbacks populated by subdev driver.
- */
-struct xrt_subdev_drv_ops {
-	/*
-	 * Per driver instance callback. The xdev points to the instance.
-	 * If defined, these are called by other leaf drivers.
-	 * Note that root driver may call into xsd_leaf_call of a group driver.
-	 */
-	int (*xsd_leaf_call)(struct xrt_device *xdev, u32 cmd, void *arg);
-};
-
-/*
- * Defined and populated by subdev driver, exported as driver_data in
- * struct xrt_device_id.
- */
-struct xrt_subdev_drvdata {
-	struct xrt_subdev_file_ops xsd_file_ops;
-	struct xrt_subdev_drv_ops xsd_dev_ops;
 };
 
 /*
@@ -199,9 +155,7 @@ xleaf_get_leaf_by_epname(struct xrt_device *xdev, const char *name)
 
 static inline int xleaf_call(struct xrt_device *tgt, u32 cmd, void *arg)
 {
-	struct xrt_subdev_drvdata *drvdata = DEV_DRVDATA(tgt);
-
-	return (*drvdata->xsd_dev_ops.xsd_leaf_call)(tgt, cmd, arg);
+	return (to_xrt_drv(tgt->dev.driver)->leaf_call)(tgt, cmd, arg);
 }
 
 int xleaf_broadcast_event(struct xrt_device *xdev, enum xrt_events evt, bool async);
@@ -220,9 +174,9 @@ int xleaf_wait_for_group_bringup(struct xrt_device *xdev);
 /*
  * Character device helper APIs for use by leaf drivers
  */
-static inline bool xleaf_devnode_enabled(struct xrt_subdev_drvdata *drvdata)
+static inline bool xleaf_devnode_enabled(struct xrt_device *xdev)
 {
-	return drvdata && drvdata->xsd_file_ops.xsf_ops.open;
+	return DEV_FILE_OPS(xdev)->xsf_ops.open;
 }
 
 int xleaf_devnode_create(struct xrt_device *xdev,

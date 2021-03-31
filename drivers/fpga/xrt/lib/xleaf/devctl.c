@@ -160,23 +160,13 @@ static struct xrt_subdev_endpoints xrt_devctl_endpoints[] = {
 	{ 0 },
 };
 
-static struct xrt_subdev_drvdata xrt_devctl_data = {
-	.xsd_dev_ops = {
-		.xsd_leaf_call = xrt_devctl_leaf_call,
-	},
-};
-
-static const struct xrt_device_id xrt_devctl_table[] = {
-	{ XRT_SUBDEV_DEVCTL, (kernel_ulong_t)&xrt_devctl_data },
-	{ },
-};
-
 static struct xrt_driver xrt_devctl_driver = {
 	.driver = {
 		.name = XRT_DEVCTL,
 	},
+	.subdev_id = XRT_SUBDEV_DEVCTL,
 	.probe = xrt_devctl_probe,
-	.id_table = xrt_devctl_table,
+	.leaf_call = xrt_devctl_leaf_call,
 };
 
 XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_DEVCTL, devctl);

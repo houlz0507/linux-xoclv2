@@ -220,24 +220,20 @@ xrt_subdev_getres(struct device *parent, enum xrt_subdev_id id,
 	return 0;
 }
 
-static inline enum xrt_subdev_file_mode
-xleaf_devnode_mode(struct xrt_subdev_drvdata *drvdata)
+static inline enum xrt_dev_file_mode
+xleaf_devnode_mode(struct xrt_device *xdev)
 {
-	return drvdata->xsd_file_ops.xsf_mode;
+	return DEV_FILE_OPS(xdev)->xsf_mode;
 }
 
 static bool xrt_subdev_cdev_auto_creation(struct xrt_device *xdev)
 {
-	struct xrt_subdev_drvdata *drvdata = DEV_DRVDATA(xdev);
-	enum xrt_subdev_file_mode mode = xleaf_devnode_mode(drvdata);
+	enum xrt_dev_file_mode mode = xleaf_devnode_mode(xdev);
 
-	if (!drvdata)
+	if (!xleaf_devnode_enabled(xdev))
 		return false;
 
-	if (!xleaf_devnode_enabled(drvdata))
-		return false;
-
-	return (mode == XRT_SUBDEV_FILE_DEFAULT || mode == XRT_SUBDEV_FILE_MULTI_INST);
+	return (mode == XRT_DEV_FILE_DEFAULT || mode == XRT_DEV_FILE_MULTI_INST);
 }
 
 static struct xrt_subdev *
@@ -290,7 +286,7 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 		struct xrt_device *grp = to_xrt_dev(parent);
 
 		/* Leaf can only be created by group driver. */
-		WARN_ON(xrt_get_device_id(grp)->subdev_id != XRT_SUBDEV_GRP);
+		WARN_ON(to_xrt_drv(parent->driver)->subdev_id != XRT_SUBDEV_GRP);
 		pdata->xsp_root_name = DEV_PDATA(grp)->xsp_root_name;
 	}
 
@@ -333,7 +329,7 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 
 	/* All done, ready to handle req thru cdev. */
 	if (xrt_subdev_cdev_auto_creation(xdev))
-		xleaf_devnode_create(xdev, DEV_DRVDATA(xdev)->xsd_file_ops.xsf_dev_name, NULL);
+		xleaf_devnode_create(xdev, DEV_FILE_OPS(xdev)->xsf_dev_name, NULL);
 
 	vfree(pdata);
 	return sdev;

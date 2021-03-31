@@ -363,24 +363,14 @@ static struct xrt_subdev_endpoints xrt_vsec_endpoints[] = {
 	{ 0 },
 };
 
-static struct xrt_subdev_drvdata xrt_vsec_data = {
-	.xsd_dev_ops = {
-		.xsd_leaf_call = xrt_vsec_leaf_call,
-	},
-};
-
-static const struct xrt_device_id xrt_vsec_table[] = {
-	{ XRT_SUBDEV_VSEC, (kernel_ulong_t)&xrt_vsec_data },
-	{ },
-};
-
 static struct xrt_driver xrt_vsec_driver = {
 	.driver = {
 		.name = XRT_VSEC,
 	},
+	.subdev_id = XRT_SUBDEV_VSEC,
 	.probe = xrt_vsec_probe,
 	.remove = xrt_vsec_remove,
-	.id_table = xrt_vsec_table,
+	.leaf_call = xrt_vsec_leaf_call,
 };
 
 XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_VSEC, vsec);

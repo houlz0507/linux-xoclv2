@@ -255,24 +255,14 @@ static int xrt_grp_leaf_call(struct xrt_device *xdev, u32 cmd, void *arg)
 	return rc;
 }
 
-static struct xrt_subdev_drvdata xrt_grp_data = {
-	.xsd_dev_ops = {
-		.xsd_leaf_call = xrt_grp_leaf_call,
-	},
-};
-
-static const struct xrt_device_id xrt_grp_id_table[] = {
-	{ XRT_SUBDEV_GRP, (kernel_ulong_t)&xrt_grp_data },
-	{ },
-};
-
 static struct xrt_driver xrt_group_driver = {
 	.driver	= {
 		.name    = XRT_GRP,
 	},
-	.probe   = xrt_grp_probe,
-	.remove  = xrt_grp_remove,
-	.id_table = xrt_grp_id_table,
+	.subdev_id = XRT_SUBDEV_GRP,
+	.probe = xrt_grp_probe,
+	.remove = xrt_grp_remove,
+	.leaf_call = xrt_grp_leaf_call,
 };
 
 void group_leaf_init_fini(bool init)
