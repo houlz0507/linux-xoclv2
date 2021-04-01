@@ -133,9 +133,9 @@ static int ucs_probe(struct xrt_device *xdev)
 	return 0;
 }
 
-static struct xrt_subdev_endpoints xrt_ucs_endpoints[] = {
+static struct xrt_dev_endpoints xrt_ucs_endpoints[] = {
 	{
-		.xse_names = (struct xrt_subdev_ep_names[]) {
+		.xse_names = (struct xrt_dev_ep_names[]) {
 			{ .ep_name = XRT_MD_NODE_UCS_CONTROL_STATUS },
 			{ NULL },
 		},
@@ -149,8 +149,9 @@ static struct xrt_driver xrt_ucs_driver = {
 		.name = XRT_UCS,
 	},
 	.subdev_id = XRT_SUBDEV_UCS,
+	.endpoints = xrt_ucs_endpoints,
 	.probe = ucs_probe,
 	.leaf_call = xrt_ucs_leaf_call,
 };
 
-XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_UCS, ucs);
+XRT_LEAF_INIT_FINI_FUNC(ucs);

@@ -310,9 +310,9 @@ static int xrt_icap_probe(struct xrt_device *xdev)
 	return result;
 }
 
-static struct xrt_subdev_endpoints xrt_icap_endpoints[] = {
+static struct xrt_dev_endpoints xrt_icap_endpoints[] = {
 	{
-		.xse_names = (struct xrt_subdev_ep_names[]) {
+		.xse_names = (struct xrt_dev_ep_names[]) {
 			{ .ep_name = XRT_MD_NODE_FPGA_CONFIG },
 			{ NULL },
 		},
@@ -326,8 +326,9 @@ static struct xrt_driver xrt_icap_driver = {
 		.name = XRT_ICAP,
 	},
 	.subdev_id = XRT_SUBDEV_ICAP,
+	.endpoints = xrt_icap_endpoints,
 	.probe = xrt_icap_probe,
 	.leaf_call = xrt_icap_leaf_call,
 };
 
-XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_ICAP, icap);
+XRT_LEAF_INIT_FINI_FUNC(icap);

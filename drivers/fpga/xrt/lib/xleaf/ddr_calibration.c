@@ -190,9 +190,9 @@ xrt_calib_leaf_call(struct xrt_device *xdev, u32 cmd, void *arg)
 	return ret;
 }
 
-static struct xrt_subdev_endpoints xrt_calib_endpoints[] = {
+static struct xrt_dev_endpoints xrt_calib_endpoints[] = {
 	{
-		.xse_names = (struct xrt_subdev_ep_names[]) {
+		.xse_names = (struct xrt_dev_ep_names[]) {
 			{ .ep_name = XRT_MD_NODE_DDR_CALIB },
 			{ NULL },
 		},
@@ -206,9 +206,10 @@ static struct xrt_driver xrt_calib_driver = {
 		.name = XRT_CALIB,
 	},
 	.subdev_id = XRT_SUBDEV_CALIB,
+	.endpoints = xrt_calib_endpoints,
 	.probe = xrt_calib_probe,
 	.remove = xrt_calib_remove,
 	.leaf_call = xrt_calib_leaf_call,
 };
 
-XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_CALIB, calib);
+XRT_LEAF_INIT_FINI_FUNC(calib);

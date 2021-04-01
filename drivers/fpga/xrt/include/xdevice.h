@@ -42,12 +42,12 @@ struct xrt_device {
  * char device (un)registration.
  */
 enum xrt_dev_file_mode {
-        /* Infra create cdev, default file name */
-        XRT_DEV_FILE_DEFAULT = 0,
-        /* Infra create cdev, need to encode inst num in file name */
-        XRT_DEV_FILE_MULTI_INST,
-        /* No auto creation of cdev by infra, leaf handles it by itself */
-        XRT_DEV_FILE_NO_AUTO,
+	/* Infra create cdev, default file name */
+	XRT_DEV_FILE_DEFAULT = 0,
+	/* Infra create cdev, need to encode inst num in file name */
+	XRT_DEV_FILE_MULTI_INST,
+	/* No auto creation of cdev by infra, leaf handles it by itself */
+	XRT_DEV_FILE_NO_AUTO,
 };
 
 struct xrt_dev_file_ops {
@@ -55,6 +55,21 @@ struct xrt_dev_file_ops {
 	dev_t xsf_dev_t;
 	const char *xsf_dev_name;
 	enum xrt_dev_file_mode xsf_mode;
+};
+
+/*
+ * this struct define the endpoints belong to the same xrt device
+ */
+struct xrt_dev_ep_names {
+	const char *ep_name;
+	const char *regmap_name;
+};
+
+struct xrt_dev_endpoints {
+	struct xrt_dev_ep_names *xse_names;
+	/* minimum number of endpoints to support the subdevice */
+	u32 xse_min_ep;
+	const char *xse_dev_name;
 };
 
 /*
@@ -70,6 +85,7 @@ struct xrt_driver {
 	struct device_driver driver;
 	u32 subdev_id;
 	struct xrt_dev_file_ops file_ops;
+	struct xrt_dev_endpoints *endpoints;
 
 	/*
 	 * Subdev driver callbacks populated by subdev driver.
@@ -78,8 +94,8 @@ struct xrt_driver {
 	void (*remove)(struct xrt_device *xrt_dev);
 	/*
 	 * If leaf_call is defined, these are called by other leaf drivers.
-         * Note that root driver may call into leaf_call of a group driver.
-         */
+	 * Note that root driver may call into leaf_call of a group driver.
+	 */
 	int (*leaf_call)(struct xrt_device *xrt_dev, u32 cmd, void *arg);
 };
 
@@ -108,8 +124,8 @@ xrt_device_register(struct device *parent, u32 id,
 		    struct resource *res, u32 res_num,
 		    void *pdata, size_t data_sz);
 void xrt_device_unregister(struct xrt_device *xdev);
-int xrt_driver_register(struct xrt_driver *drv);
-void xrt_driver_unregister(struct xrt_driver *drv);
+int xrt_register_driver(struct xrt_driver *drv);
+void xrt_unregister_driver(struct xrt_driver *drv);
 void *xrt_get_xdev_data(struct device *dev);
 struct resource *xrt_get_resource(struct xrt_device *xdev, u32 type, u32 num);
 

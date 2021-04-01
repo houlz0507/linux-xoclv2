@@ -203,9 +203,9 @@ failed:
 	return ret;
 }
 
-static struct xrt_subdev_endpoints xrt_clkfreq_endpoints[] = {
+static struct xrt_dev_endpoints xrt_clkfreq_endpoints[] = {
 	{
-		.xse_names = (struct xrt_subdev_ep_names[]) {
+		.xse_names = (struct xrt_dev_ep_names[]) {
 			{ .regmap_name = XRT_MD_REGMAP_CLKFREQ },
 			{ NULL },
 		},
@@ -219,9 +219,10 @@ static struct xrt_driver xrt_clkfreq_driver = {
 		.name = XRT_CLKFREQ,
 	},
 	.subdev_id = XRT_SUBDEV_CLKFREQ,
+	.endpoints = xrt_clkfreq_endpoints,
 	.probe = clkfreq_probe,
 	.remove = clkfreq_remove,
 	.leaf_call = xrt_clkfreq_leaf_call,
 };
 
-XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_CLKFREQ, clkfreq);
+XRT_LEAF_INIT_FINI_FUNC(clkfreq);

@@ -140,9 +140,9 @@ static int xrt_devctl_probe(struct xrt_device *xdev)
 	return ret;
 }
 
-static struct xrt_subdev_endpoints xrt_devctl_endpoints[] = {
+static struct xrt_dev_endpoints xrt_devctl_endpoints[] = {
 	{
-		.xse_names = (struct xrt_subdev_ep_names[]) {
+		.xse_names = (struct xrt_dev_ep_names[]) {
 			/* add name if ep is in same partition */
 			{ .ep_name = XRT_MD_NODE_BLP_ROM },
 			{ NULL },
@@ -150,7 +150,7 @@ static struct xrt_subdev_endpoints xrt_devctl_endpoints[] = {
 		.xse_min_ep = 1,
 	},
 	{
-		.xse_names = (struct xrt_subdev_ep_names[]) {
+		.xse_names = (struct xrt_dev_ep_names[]) {
 			{ .ep_name = XRT_MD_NODE_GOLDEN_VER },
 			{ NULL },
 		},
@@ -165,8 +165,9 @@ static struct xrt_driver xrt_devctl_driver = {
 		.name = XRT_DEVCTL,
 	},
 	.subdev_id = XRT_SUBDEV_DEVCTL,
+	.endpoints = xrt_devctl_endpoints,
 	.probe = xrt_devctl_probe,
 	.leaf_call = xrt_devctl_leaf_call,
 };
 
-XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_DEVCTL, devctl);
+XRT_LEAF_INIT_FINI_FUNC(devctl);

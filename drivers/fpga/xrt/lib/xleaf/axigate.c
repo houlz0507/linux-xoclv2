@@ -301,16 +301,16 @@ failed:
 	return ret;
 }
 
-static struct xrt_subdev_endpoints xrt_axigate_endpoints[] = {
+static struct xrt_dev_endpoints xrt_axigate_endpoints[] = {
 	{
-		.xse_names = (struct xrt_subdev_ep_names[]) {
+		.xse_names = (struct xrt_dev_ep_names[]) {
 			{ .ep_name = XRT_MD_NODE_GATE_ULP },
 			{ NULL },
 		},
 		.xse_min_ep = 1,
 	},
 	{
-		.xse_names = (struct xrt_subdev_ep_names[]) {
+		.xse_names = (struct xrt_dev_ep_names[]) {
 			{ .ep_name = XRT_MD_NODE_GATE_PLP },
 			{ NULL },
 		},
@@ -324,8 +324,9 @@ static struct xrt_driver xrt_axigate_driver = {
 		.name = XRT_AXIGATE,
 	},
 	.subdev_id = XRT_SUBDEV_AXIGATE,
+	.endpoints = xrt_axigate_endpoints,
 	.probe = xrt_axigate_probe,
 	.leaf_call = xrt_axigate_leaf_call,
 };
 
-XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_AXIGATE, axigate);
+XRT_LEAF_INIT_FINI_FUNC(axigate);

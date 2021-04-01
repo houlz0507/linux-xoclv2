@@ -17,192 +17,25 @@
 #define XRT_IPLIB_MODULE_VERSION	"4.0.0"
 #define XRT_DRVNAME(drv)		((drv)->driver.name)
 
-/*
- * Subdev driver is known by it's ID to others. We map the ID to it's
- * struct xrt_driver, which contains it's binding name and driver/file ops.
- * We also map it to the endpoint name in DTB as well, if it's different
- * than the driver's binding name.
- */
-struct xrt_drv_map {
-	struct list_head list;
+#define XRT_SUBDEV_ID_SHIFT		16
+#define XRT_SUBDEV_ID_MASK		((1 << XRT_SUBDEV_ID_SHIFT) - 1)
+
+struct xrt_find_drv_data {
 	enum xrt_subdev_id id;
-	struct xrt_driver *drv;
-	struct xrt_subdev_endpoints *eps;
-	struct ida ida; /* manage driver instance and char dev minor */
+	struct xrt_driver *xdrv;
 };
 
-static DEFINE_MUTEX(xrt_lib_lock); /* global lock protecting xrt_drv_maps list */
-static LIST_HEAD(xrt_drv_maps);
 struct class *xrt_class;
+static DEFINE_IDA(xrt_device_ida);
 
-static struct xrt_drv_map *
-__xrt_drv_find_map_by_id(enum xrt_subdev_id id)
+static inline u32 xrt_instance_to_id(enum xrt_subdev_id id, u32 instance)
 {
-	struct xrt_drv_map *tmap;
-
-	list_for_each_entry(tmap, &xrt_drv_maps, list) {
-		if (tmap->id == id)
-			return tmap;
-	}
-	return NULL;
+	return (id << XRT_SUBDEV_ID_SHIFT) | instance;
 }
 
-static struct xrt_drv_map *
-xrt_drv_find_map_by_id(enum xrt_subdev_id id)
+static inline u32 xrt_id_to_instance(u32 id)
 {
-	struct xrt_drv_map *map;
-
-	mutex_lock(&xrt_lib_lock);
-	map = __xrt_drv_find_map_by_id(id);
-	mutex_unlock(&xrt_lib_lock);
-	/*
-	 * map should remain valid even after the lock is dropped since a registered
-	 * driver should only be unregistered when driver module is being unloaded,
-	 * which means that the driver should not be used by then.
-	 */
-	return map;
-}
-
-static int xrt_drv_register_driver(struct xrt_drv_map *map)
-{
-	const char *drvname = XRT_DRVNAME(map->drv);
-	int rc = 0;
-
-	rc = xrt_driver_register(map->drv);
-	if (rc) {
-		pr_err("register %s xrt driver failed\n", drvname);
-		return rc;
-	}
-
-	/* Initialize dev_t for char dev node. */
-	if (map->drv->file_ops.xsf_ops.open) {
-		rc = alloc_chrdev_region(&map->drv->file_ops.xsf_dev_t, 0,
-					 XRT_MAX_DEVICE_NODES, drvname);
-		if (rc) {
-			xrt_driver_unregister(map->drv);
-			pr_err("failed to alloc dev minor for %s: %d\n", drvname, rc);
-			return rc;
-		}
-	} else {
-		map->drv->file_ops.xsf_dev_t = (dev_t)-1;
-	}
-
-	ida_init(&map->ida);
-
-	pr_info("%s registered successfully\n", drvname);
-
-	return 0;
-}
-
-static void xrt_drv_unregister_driver(struct xrt_drv_map *map)
-{
-	const char *drvname = XRT_DRVNAME(map->drv);
-
-	ida_destroy(&map->ida);
-
-	if (map->drv->file_ops.xsf_dev_t != (dev_t)-1) {
-		unregister_chrdev_region(map->drv->file_ops.xsf_dev_t,
-					 XRT_MAX_DEVICE_NODES);
-	}
-
-	xrt_driver_unregister(map->drv);
-
-	pr_info("%s unregistered successfully\n", drvname);
-}
-
-int xleaf_register_driver(enum xrt_subdev_id id,
-			  struct xrt_driver *drv,
-			  struct xrt_subdev_endpoints *eps)
-{
-	struct xrt_drv_map *map;
-	int rc;
-
-	mutex_lock(&xrt_lib_lock);
-
-	map = __xrt_drv_find_map_by_id(id);
-	if (map) {
-		mutex_unlock(&xrt_lib_lock);
-		pr_err("Id %d already has a registered driver, 0x%p\n",
-		       id, map->drv);
-		return -EEXIST;
-	}
-
-	map = kzalloc(sizeof(*map), GFP_KERNEL);
-	if (!map) {
-		mutex_unlock(&xrt_lib_lock);
-		return -ENOMEM;
-	}
-	map->id = id;
-	map->drv = drv;
-	map->eps = eps;
-
-	rc = xrt_drv_register_driver(map);
-	if (rc) {
-		kfree(map);
-		mutex_unlock(&xrt_lib_lock);
-		return rc;
-	}
-
-	list_add(&map->list, &xrt_drv_maps);
-
-	mutex_unlock(&xrt_lib_lock);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(xleaf_register_driver);
-
-void xleaf_unregister_driver(enum xrt_subdev_id id)
-{
-	struct xrt_drv_map *map;
-
-	mutex_lock(&xrt_lib_lock);
-
-	map = __xrt_drv_find_map_by_id(id);
-	if (!map) {
-		mutex_unlock(&xrt_lib_lock);
-		pr_err("Id %d has no registered driver\n", id);
-		return;
-	}
-
-	list_del(&map->list);
-
-	mutex_unlock(&xrt_lib_lock);
-
-	xrt_drv_unregister_driver(map);
-	kfree(map);
-}
-EXPORT_SYMBOL_GPL(xleaf_unregister_driver);
-
-const char *xrt_drv_name(enum xrt_subdev_id id)
-{
-	struct xrt_drv_map *map = xrt_drv_find_map_by_id(id);
-
-	if (map)
-		return XRT_DRVNAME(map->drv);
-	return NULL;
-}
-
-int xrt_drv_get_instance(enum xrt_subdev_id id)
-{
-	struct xrt_drv_map *map = xrt_drv_find_map_by_id(id);
-
-	return ida_alloc_range(&map->ida, 0, XRT_MAX_DEVICE_NODES, GFP_KERNEL);
-}
-
-void xrt_drv_put_instance(enum xrt_subdev_id id, int instance)
-{
-	struct xrt_drv_map *map = xrt_drv_find_map_by_id(id);
-
-	ida_free(&map->ida, instance);
-}
-
-struct xrt_subdev_endpoints *xrt_drv_get_endpoints(enum xrt_subdev_id id)
-{
-	struct xrt_drv_map *map = xrt_drv_find_map_by_id(id);
-	struct xrt_subdev_endpoints *eps;
-
-	eps = map ? map->eps : NULL;
-	return eps;
+	return (id & XRT_SUBDEV_ID_MASK);
 }
 
 static int xrt_bus_match(struct device *dev, struct device_driver *drv)
@@ -241,6 +74,110 @@ static struct bus_type xrt_bus_type = {
 	.probe		= xrt_bus_probe,
 	.remove		= xrt_bus_remove,
 };
+
+int xrt_register_driver(struct xrt_driver *drv)
+{
+	const char *drvname = XRT_DRVNAME(drv);
+	int rc = 0;
+
+	/* Initialize dev_t for char dev node. */
+	if (drv->file_ops.xsf_ops.open) {
+		rc = alloc_chrdev_region(&drv->file_ops.xsf_dev_t, 0,
+					 XRT_MAX_DEVICE_NODES, drvname);
+		if (rc) {
+			pr_err("failed to alloc dev minor for %s: %d\n", drvname, rc);
+			return rc;
+		}
+	} else {
+		drv->file_ops.xsf_dev_t = (dev_t)-1;
+	}
+
+	drv->driver.owner = THIS_MODULE;
+	drv->driver.bus = &xrt_bus_type;
+
+	rc = driver_register(&drv->driver);
+	if (rc) {
+		pr_err("register %s xrt driver failed\n", drvname);
+		if (drv->file_ops.xsf_dev_t != (dev_t)-1) {
+			unregister_chrdev_region(drv->file_ops.xsf_dev_t,
+						 XRT_MAX_DEVICE_NODES);
+		}
+		return rc;
+	}
+
+	pr_info("%s registered successfully\n", drvname);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(xrt_register_driver);
+
+void xrt_unregister_driver(struct xrt_driver *drv)
+{
+	driver_unregister(&drv->driver);
+
+	if (drv->file_ops.xsf_dev_t != (dev_t)-1)
+		unregister_chrdev_region(drv->file_ops.xsf_dev_t, XRT_MAX_DEVICE_NODES);
+
+	pr_info("%s unregistered successfully\n", XRT_DRVNAME(drv));
+}
+EXPORT_SYMBOL_GPL(xrt_unregister_driver);
+
+static int __find_driver(struct device_driver *drv, void *_data)
+{
+	struct xrt_driver *xdrv = to_xrt_drv(drv);
+	struct xrt_find_drv_data *data = _data;
+
+	if (xdrv->subdev_id == data->id) {
+		data->xdrv = xdrv;
+		return 1;
+	}
+
+	return 0;
+}
+
+const char *xrt_drv_name(enum xrt_subdev_id id)
+{
+	struct xrt_find_drv_data data = { 0 };
+
+	data.id = id;
+	bus_for_each_drv(&xrt_bus_type, NULL, &data, __find_driver);
+
+	if (data.xdrv)
+		return XRT_DRVNAME(data.xdrv);
+
+	return NULL;
+}
+
+int xrt_drv_get_instance(enum xrt_subdev_id id)
+{
+	int ret;
+
+	ret = ida_alloc_range(&xrt_device_ida, xrt_instance_to_id(id, 0),
+			      xrt_instance_to_id(id, XRT_MAX_DEVICE_NODES),
+			      GFP_KERNEL);
+	if (ret < 0)
+		return ret;
+
+	return xrt_id_to_instance((u32)ret);
+}
+
+void xrt_drv_put_instance(enum xrt_subdev_id id, int instance)
+{
+	ida_free(&xrt_device_ida, xrt_instance_to_id(id, instance));
+}
+
+struct xrt_dev_endpoints *xrt_drv_get_endpoints(enum xrt_subdev_id id)
+{
+	struct xrt_find_drv_data data = { 0 };
+
+	data.id = id;
+	bus_for_each_drv(&xrt_bus_type, NULL, &data, __find_driver);
+
+	if (data.xdrv)
+		return data.xdrv->endpoints;
+
+	return NULL;
+}
 
 static void xrt_device_release(struct device *dev)
 {
@@ -321,19 +258,6 @@ fail:
 	return NULL;
 }
 
-int xrt_driver_register(struct xrt_driver *drv)
-{
-	drv->driver.owner = THIS_MODULE;
-	drv->driver.bus = &xrt_bus_type;
-
-	return driver_register(&drv->driver);
-}
-
-void xrt_driver_unregister(struct xrt_driver *drv)
-{
-	driver_unregister(&drv->driver);
-}
-
 struct resource *xrt_get_resource(struct xrt_device *xdev, u32 type, u32 num)
 {
 	u32 i;
@@ -382,25 +306,10 @@ static __init int xrt_lib_init(void)
 
 static __exit void xrt_lib_fini(void)
 {
-	struct xrt_drv_map *map;
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(leaf_init_fini_cbs); i++)
 		leaf_init_fini_cbs[i](false);
-
-	mutex_lock(&xrt_lib_lock);
-
-	while (!list_empty(&xrt_drv_maps)) {
-		map = list_first_entry_or_null(&xrt_drv_maps, struct xrt_drv_map, list);
-		pr_err("Unloading module with %s still registered\n", XRT_DRVNAME(map->drv));
-		list_del(&map->list);
-		mutex_unlock(&xrt_lib_lock);
-		xrt_drv_unregister_driver(map);
-		kfree(map);
-		mutex_lock(&xrt_lib_lock);
-	}
-
-	mutex_unlock(&xrt_lib_lock);
 
 	class_destroy(xrt_class);
 	bus_unregister(&xrt_bus_type);

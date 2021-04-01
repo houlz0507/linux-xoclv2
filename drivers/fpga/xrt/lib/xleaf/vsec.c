@@ -352,9 +352,9 @@ failed:
 	return ret;
 }
 
-static struct xrt_subdev_endpoints xrt_vsec_endpoints[] = {
+static struct xrt_dev_endpoints xrt_vsec_endpoints[] = {
 	{
-		.xse_names = (struct xrt_subdev_ep_names []){
+		.xse_names = (struct xrt_dev_ep_names []){
 			{ .ep_name = XRT_MD_NODE_VSEC },
 			{ NULL },
 		},
@@ -368,9 +368,10 @@ static struct xrt_driver xrt_vsec_driver = {
 		.name = XRT_VSEC,
 	},
 	.subdev_id = XRT_SUBDEV_VSEC,
+	.endpoints = xrt_vsec_endpoints,
 	.probe = xrt_vsec_probe,
 	.remove = xrt_vsec_remove,
 	.leaf_call = xrt_vsec_leaf_call,
 };
 
-XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_VSEC, vsec);
+XRT_LEAF_INIT_FINI_FUNC(vsec);

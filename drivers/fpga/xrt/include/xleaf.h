@@ -21,7 +21,7 @@
 #define DEV_PDATA(xdev)					\
 	((struct xrt_subdev_platdata *)xrt_get_xdev_data(DEV(xdev)))
 #define DEV_FILE_OPS(xdev)				\
-	(&(to_xrt_drv(xdev->dev.driver))->file_ops)
+	(&(to_xrt_drv((xdev)->dev.driver))->file_ops)
 #define FMT_PRT(prt_fn, xdev, fmt, args...)		\
 	({typeof(xdev) (_xdev) = (xdev);		\
 	prt_fn(DEV(_xdev), "%s %s: " fmt,		\
@@ -95,20 +95,6 @@ struct xrt_subdev_platdata {
 	 */
 	bool xsp_dtb_valid;
 	char xsp_dtb[0];
-};
-
-/*
- * this struct define the endpoints belong to the same subdevice
- */
-struct xrt_subdev_ep_names {
-	const char *ep_name;
-	const char *regmap_name;
-};
-
-struct xrt_subdev_endpoints {
-	struct xrt_subdev_ep_names *xse_names;
-	/* minimum number of endpoints to support the subdevice */
-	u32 xse_min_ep;
 };
 
 struct subdev_match_arg {
@@ -187,23 +173,14 @@ struct xrt_device *xleaf_devnode_open_excl(struct inode *inode);
 struct xrt_device *xleaf_devnode_open(struct inode *inode);
 void xleaf_devnode_close(struct inode *inode);
 
-/* Helpers. */
-int xleaf_register_driver(enum xrt_subdev_id id, struct xrt_driver *drv,
-			  struct xrt_subdev_endpoints *eps);
-void xleaf_unregister_driver(enum xrt_subdev_id id);
-
 /* Module's init/fini routines for leaf driver in xrt-lib module */
-#define XRT_LEAF_INIT_FINI_FUNC(_id, name)				\
+#define XRT_LEAF_INIT_FINI_FUNC(name)					\
 void name##_leaf_init_fini(bool init)					\
 {									\
-	typeof(_id) id = _id;						\
-	if (init) {							\
-		xleaf_register_driver(id,				\
-				      &xrt_##name##_driver,		\
-				      xrt_##name##_endpoints);		\
-	} else {							\
-		xleaf_unregister_driver(id);				\
-	}								\
+	if (init)							\
+		xrt_register_driver(&xrt_##name##_driver);		\
+	else								\
+		xrt_unregister_driver(&xrt_##name##_driver);		\
 }
 
 void group_leaf_init_fini(bool init);

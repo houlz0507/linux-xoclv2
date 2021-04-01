@@ -617,9 +617,9 @@ static long xmgmt_main_ioctl(struct file *filp, unsigned int cmd, unsigned long 
 	return result;
 }
 
-static struct xrt_subdev_endpoints xrt_mgmt_main_endpoints[] = {
+static struct xrt_dev_endpoints xrt_mgmt_main_endpoints[] = {
 	{
-		.xse_names = (struct xrt_subdev_ep_names []){
+		.xse_names = (struct xrt_dev_ep_names []){
 			{ .ep_name = XRT_MD_NODE_MGMT_MAIN },
 			{ NULL },
 		},
@@ -642,6 +642,7 @@ static struct xrt_driver xmgmt_main_driver = {
 		.xsf_dev_name = "xmgmt",
 	},
 	.subdev_id = XRT_SUBDEV_MGMT_MAIN,
+	.endpoints = xrt_mgmt_main_endpoints,
 	.probe = xmgmt_main_probe,
 	.remove = xmgmt_main_remove,
 	.leaf_call = xmgmt_mainleaf_call,
@@ -649,11 +650,10 @@ static struct xrt_driver xmgmt_main_driver = {
 
 int xmgmt_register_leaf(void)
 {
-	return xleaf_register_driver(XRT_SUBDEV_MGMT_MAIN,
-				     &xmgmt_main_driver, xrt_mgmt_main_endpoints);
+	return xrt_register_driver(&xmgmt_main_driver);
 }
 
 void xmgmt_unregister_leaf(void)
 {
-	xleaf_unregister_driver(XRT_SUBDEV_MGMT_MAIN);
+	xrt_unregister_driver(&xmgmt_main_driver);
 }

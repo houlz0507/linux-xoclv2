@@ -55,7 +55,7 @@ static int xrt_grp_root_cb(struct device *dev, void *parg,
  * Cut subdev's dtb from group's dtb based on passed-in endpoint descriptor.
  * Return the subdev's dtb through dtbp, if found.
  */
-static int xrt_grp_cut_subdev_dtb(struct xrt_group *xg, struct xrt_subdev_endpoints *eps,
+static int xrt_grp_cut_subdev_dtb(struct xrt_group *xg, struct xrt_dev_endpoints *eps,
 				  char *grp_dtb, char **dtbp)
 {
 	int ret, i, ep_count = 0;
@@ -99,7 +99,7 @@ static int xrt_grp_cut_subdev_dtb(struct xrt_group *xg, struct xrt_subdev_endpoi
 static int xrt_grp_create_leaves(struct xrt_group *xg)
 {
 	struct xrt_subdev_platdata *pdata = DEV_PDATA(xg->xdev);
-	struct xrt_subdev_endpoints *eps = NULL;
+	struct xrt_dev_endpoints *eps = NULL;
 	int ret = 0, failed = 0;
 	enum xrt_subdev_id did;
 	char *grp_dtb = NULL;
@@ -265,10 +265,4 @@ static struct xrt_driver xrt_group_driver = {
 	.leaf_call = xrt_grp_leaf_call,
 };
 
-void group_leaf_init_fini(bool init)
-{
-	if (init)
-		xleaf_register_driver(XRT_SUBDEV_GRP, &xrt_group_driver, NULL);
-	else
-		xleaf_unregister_driver(XRT_SUBDEV_GRP);
-}
+XRT_LEAF_INIT_FINI_FUNC(group);
