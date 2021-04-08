@@ -31,6 +31,14 @@
 #define xrt_info(xdev, fmt, args...) FMT_PRT(dev_info, xdev, fmt, ##args)
 #define xrt_dbg(xdev, fmt, args...) FMT_PRT(dev_dbg, xdev, fmt, ##args)
 
+#define XRT_DEFINE_REGMAP_CONFIG(config_name)			\
+static const struct regmap_config config_name = {		\
+	.reg_bits = 32,						\
+	.val_bits = 32,						\
+	.reg_stride = 4,					\
+	.max_register = 0x1000,					\
+}
+
 enum {
 	/* Starting cmd for common leaf cmd implemented by all leaves. */
 	XRT_XLEAF_COMMON_BASE = 0,
@@ -147,7 +155,7 @@ static inline int xleaf_call(struct xrt_device *tgt, u32 cmd, void *arg)
 int xleaf_broadcast_event(struct xrt_device *xdev, enum xrt_events evt, bool async);
 int xleaf_create_group(struct xrt_device *xdev, char *dtb);
 int xleaf_destroy_group(struct xrt_device *xdev, int instance);
-void xleaf_get_barres(struct xrt_device *xdev, struct resource **res, uint bar_idx);
+void xleaf_get_root_res(struct xrt_device *xdev, u32 region_id, struct resource **res);
 void xleaf_get_root_id(struct xrt_device *xdev, unsigned short *vendor, unsigned short *device,
 		       unsigned short *subvendor, unsigned short *subdevice);
 void xleaf_hot_reset(struct xrt_device *xdev);
@@ -167,7 +175,7 @@ static inline bool xleaf_devnode_enabled(struct xrt_device *xdev)
 
 int xleaf_devnode_create(struct xrt_device *xdev,
 			 const char *file_name, const char *inst_name);
-int xleaf_devnode_destroy(struct xrt_device *xdev);
+void xleaf_devnode_destroy(struct xrt_device *xdev);
 
 struct xrt_device *xleaf_devnode_open_excl(struct inode *inode);
 struct xrt_device *xleaf_devnode_open(struct inode *inode);
@@ -183,6 +191,7 @@ void name##_leaf_init_fini(bool init)					\
 		xrt_unregister_driver(&xrt_##name##_driver);		\
 }
 
+/* Module's init/fini routines for leaf driver in xrt-lib module */
 void group_leaf_init_fini(bool init);
 void vsec_leaf_init_fini(bool init);
 void devctl_leaf_init_fini(bool init);

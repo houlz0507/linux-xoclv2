@@ -9,25 +9,16 @@
  */
 
 #include <linux/module.h>
-#include <linux/pci.h>
 #include <linux/hwmon.h>
 #include "xroot.h"
 #include "subdev_pool.h"
 #include "group.h"
 #include "metadata.h"
 
-#define XROOT_PDEV(xr)		((xr)->pdev)
-#define XROOT_DEV(xr)		(&(XROOT_PDEV(xr)->dev))
-#define xroot_err(xr, fmt, args...)	\
-	dev_err(XROOT_DEV(xr), "%s: " fmt, __func__, ##args)
-#define xroot_warn(xr, fmt, args...)	\
-	dev_warn(XROOT_DEV(xr), "%s: " fmt, __func__, ##args)
-#define xroot_info(xr, fmt, args...)	\
-	dev_info(XROOT_DEV(xr), "%s: " fmt, __func__, ##args)
-#define xroot_dbg(xr, fmt, args...)	\
-	dev_dbg(XROOT_DEV(xr), "%s: " fmt, __func__, ##args)
-
-#define XRT_VSEC_ID		0x20
+#define xroot_err(xr, fmt, args...) dev_err((xr)->dev, "%s: " fmt, __func__, ##args)
+#define xroot_warn(xr, fmt, args...) dev_warn((xr)->dev, "%s: " fmt, __func__, ##args)
+#define xroot_info(xr, fmt, args...) dev_info((xr)->dev, "%s: " fmt, __func__, ##args)
+#define xroot_dbg(xr, fmt, args...) dev_dbg((xr)->dev, "%s: " fmt, __func__, ##args)
 
 #define XROOT_GROUP_FIRST		(-1)
 #define XROOT_GROUP_LAST		(-2)
@@ -50,13 +41,13 @@ struct xroot_events {
 struct xroot_groups {
 	struct xrt_subdev_pool pool;
 	struct work_struct bringup_work;
-	atomic_t bringup_pending;
-	atomic_t bringup_failed;
+	atomic_t bringup_pending_cnt;
+	atomic_t bringup_failed_cnt;
 	struct completion bringup_comp;
 };
 
 struct xroot {
-	struct pci_dev *pdev;
+	struct device *dev;
 	struct xroot_events events;
 	struct xroot_groups groups;
 	struct xroot_physical_function_callback pf_cb;
@@ -79,7 +70,7 @@ static int xroot_get_group(struct xroot *xr, int instance, struct xrt_device **g
 {
 	int rc = 0;
 	struct xrt_subdev_pool *grps = &xr->groups.pool;
-	struct device *dev = DEV(xr->pdev);
+	struct device *dev = xr->dev;
 	struct xroot_group_match_arg arg = { XRT_SUBDEV_GRP, instance };
 
 	if (instance == XROOT_GROUP_LAST) {
@@ -101,7 +92,7 @@ static int xroot_get_group(struct xroot *xr, int instance, struct xrt_device **g
 static void xroot_put_group(struct xroot *xr, struct xrt_device *grp)
 {
 	int inst = grp->instance;
-	int rc = xrt_subdev_pool_put(&xr->groups.pool, grp, DEV(xr->pdev));
+	int rc = xrt_subdev_pool_put(&xr->groups.pool, grp, xr->dev);
 
 	if (rc)
 		xroot_err(xr, "failed to release group %d: %d", inst, rc);
@@ -167,13 +158,13 @@ int xroot_create_group(void *root, char *dtb)
 	struct xroot *xr = (struct xroot *)root;
 	int ret;
 
-	atomic_inc(&xr->groups.bringup_pending);
+	atomic_inc(&xr->groups.bringup_pending_cnt);
 	ret = xrt_subdev_pool_add(&xr->groups.pool, XRT_SUBDEV_GRP, xroot_root_cb, xr, dtb);
 	if (ret >= 0) {
 		schedule_work(&xr->groups.bringup_work);
 	} else {
-		atomic_dec(&xr->groups.bringup_pending);
-		atomic_inc(&xr->groups.bringup_failed);
+		atomic_dec(&xr->groups.bringup_pending_cnt);
+		atomic_inc(&xr->groups.bringup_failed_cnt);
 		xroot_err(xr, "failed to create group: %d", ret);
 	}
 	return ret;
@@ -371,22 +362,32 @@ static int xroot_root_cb(struct device *dev, void *parg, enum xrt_root_cmd cmd, 
 	case XRT_ROOT_GET_RESOURCE: {
 		struct xrt_root_get_res *res = (struct xrt_root_get_res *)arg;
 
-		res->xpigr_res = xr->pdev->resource;
+		if (xr->pf_cb.xpc_get_resource) {
+			rc = xr->pf_cb.xpc_get_resource(xr->dev, res);
+		} else {
+			xroot_err(xr, "get resource is not supported");
+			rc = -EOPNOTSUPP;
+		}
 		break;
 	}
 	case XRT_ROOT_GET_ID: {
 		struct xrt_root_get_id *id = (struct xrt_root_get_id *)arg;
 
-		id->xpigi_vendor_id = xr->pdev->vendor;
-		id->xpigi_device_id = xr->pdev->device;
-		id->xpigi_sub_vendor_id = xr->pdev->subsystem_vendor;
-		id->xpigi_sub_device_id = xr->pdev->subsystem_device;
+		if (xr->pf_cb.xpc_get_id)
+			xr->pf_cb.xpc_get_id(xr->dev, id);
+		else
+			memset(id, 0, sizeof(*id));
 		break;
 	}
 
-	/* MISC generic PCIE driver functions. */
+	/* MISC generic root driver functions. */
 	case XRT_ROOT_HOT_RESET: {
-		xr->pf_cb.xpc_hot_reset(xr->pdev);
+		if (xr->pf_cb.xpc_hot_reset) {
+			xr->pf_cb.xpc_hot_reset(xr->dev);
+		} else {
+			xroot_err(xr, "hot reset is not supported");
+			rc = -EOPNOTSUPP;
+		}
 		break;
 	}
 	case XRT_ROOT_HWMON: {
@@ -394,7 +395,7 @@ static int xroot_root_cb(struct device *dev, void *parg, enum xrt_root_cmd cmd, 
 
 		if (hwmon->xpih_register) {
 			hwmon->xpih_hwmon_dev =
-				hwmon_device_register_with_info(DEV(xr->pdev),
+				hwmon_device_register_with_info(xr->dev,
 								hwmon->xpih_name,
 								hwmon->xpih_drvdata,
 								NULL,
@@ -428,21 +429,21 @@ static void xroot_bringup_group_work(struct work_struct *work)
 		if (r == -EEXIST)
 			continue; /* Already brough up, nothing to do. */
 		if (r)
-			atomic_inc(&xr->groups.bringup_failed);
+			atomic_inc(&xr->groups.bringup_failed_cnt);
 
 		xroot_group_trigger_event(xr, i, XRT_EVENT_POST_CREATION);
 
-		if (atomic_dec_and_test(&xr->groups.bringup_pending))
+		if (atomic_dec_and_test(&xr->groups.bringup_pending_cnt))
 			complete(&xr->groups.bringup_comp);
 	}
 }
 
 static void xroot_groups_init(struct xroot *xr)
 {
-	xrt_subdev_pool_init(DEV(xr->pdev), &xr->groups.pool);
+	xrt_subdev_pool_init(xr->dev, &xr->groups.pool);
 	INIT_WORK(&xr->groups.bringup_work, xroot_bringup_group_work);
-	atomic_set(&xr->groups.bringup_pending, 0);
-	atomic_set(&xr->groups.bringup_failed, 0);
+	atomic_set(&xr->groups.bringup_pending_cnt, 0);
+	atomic_set(&xr->groups.bringup_failed_cnt, 0);
 	init_completion(&xr->groups.bringup_comp);
 }
 
@@ -452,63 +453,10 @@ static void xroot_groups_fini(struct xroot *xr)
 	xrt_subdev_pool_fini(&xr->groups.pool);
 }
 
-int xroot_add_vsec_node(void *root, char *dtb)
-{
-	struct xroot *xr = (struct xroot *)root;
-	struct device *dev = DEV(xr->pdev);
-	struct xrt_md_endpoint ep = { 0 };
-	int cap = 0, ret = 0;
-	u32 off_low, off_high, vsec_bar, header;
-	u64 vsec_off;
-
-	while ((cap = pci_find_next_ext_capability(xr->pdev, cap, PCI_EXT_CAP_ID_VNDR))) {
-		pci_read_config_dword(xr->pdev, cap + PCI_VNDR_HEADER, &header);
-		if (PCI_VNDR_HEADER_ID(header) == XRT_VSEC_ID)
-			break;
-	}
-	if (!cap) {
-		xroot_info(xr, "No Vendor Specific Capability.");
-		return -ENOENT;
-	}
-
-	if (pci_read_config_dword(xr->pdev, cap + 8, &off_low) ||
-	    pci_read_config_dword(xr->pdev, cap + 12, &off_high)) {
-		xroot_err(xr, "pci_read vendor specific failed.");
-		return -EINVAL;
-	}
-
-	ep.ep_name = XRT_MD_NODE_VSEC;
-	ret = xrt_md_add_endpoint(dev, dtb, &ep);
-	if (ret) {
-		xroot_err(xr, "add vsec metadata failed, ret %d", ret);
-		goto failed;
-	}
-
-	vsec_bar = cpu_to_be32(off_low & 0xf);
-	ret = xrt_md_set_prop(dev, dtb, XRT_MD_NODE_VSEC, NULL,
-			      XRT_MD_PROP_BAR_IDX, &vsec_bar, sizeof(vsec_bar));
-	if (ret) {
-		xroot_err(xr, "add vsec bar idx failed, ret %d", ret);
-		goto failed;
-	}
-
-	vsec_off = cpu_to_be64(((u64)off_high << 32) | (off_low & ~0xfU));
-	ret = xrt_md_set_prop(dev, dtb, XRT_MD_NODE_VSEC, NULL,
-			      XRT_MD_PROP_OFFSET, &vsec_off, sizeof(vsec_off));
-	if (ret) {
-		xroot_err(xr, "add vsec offset failed, ret %d", ret);
-		goto failed;
-	}
-
-failed:
-	return ret;
-}
-EXPORT_SYMBOL_GPL(xroot_add_vsec_node);
-
 int xroot_add_simple_node(void *root, char *dtb, const char *endpoint)
 {
 	struct xroot *xr = (struct xroot *)root;
-	struct device *dev = DEV(xr->pdev);
+	struct device *dev = xr->dev;
 	struct xrt_md_endpoint ep = { 0 };
 	int ret = 0;
 
@@ -526,13 +474,12 @@ bool xroot_wait_for_bringup(void *root)
 	struct xroot *xr = (struct xroot *)root;
 
 	wait_for_completion(&xr->groups.bringup_comp);
-	return atomic_read(&xr->groups.bringup_failed) == 0;
+	return atomic_read(&xr->groups.bringup_failed_cnt) == 0;
 }
 EXPORT_SYMBOL_GPL(xroot_wait_for_bringup);
 
-int xroot_probe(struct pci_dev *pdev, struct xroot_physical_function_callback *cb, void **root)
+int xroot_probe(struct device *dev, struct xroot_physical_function_callback *cb, void **root)
 {
-	struct device *dev = DEV(pdev);
 	struct xroot *xr = NULL;
 
 	dev_info(dev, "%s: probing...", __func__);
@@ -541,7 +488,7 @@ int xroot_probe(struct pci_dev *pdev, struct xroot_physical_function_callback *c
 	if (!xr)
 		return -ENOMEM;
 
-	xr->pdev = pdev;
+	xr->dev = dev;
 	xr->pf_cb = *cb;
 	xroot_groups_init(xr);
 	xroot_event_init(xr);

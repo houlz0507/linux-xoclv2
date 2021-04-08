@@ -6,14 +6,18 @@
  *	Cheng Zhen <maxz@xilinx.com>
  */
 
-#include <linux/pci.h>
 #include <linux/vmalloc.h>
+#include <linux/slab.h>
 #include "xleaf.h"
 #include "subdev_pool.h"
 #include "lib-drv.h"
 #include "metadata.h"
 
-#define IS_ROOT_DEV(dev) ((dev)->bus == &pci_bus_type)
+extern struct bus_type xrt_bus_type;
+
+#define IS_ROOT_DEV(dev)	((dev)->bus != &xrt_bus_type)
+#define XRT_HOLDER_BUF_SZ	1024
+
 static inline struct device *find_root(struct xrt_device *xdev)
 {
 	struct device *d = DEV(xdev);
@@ -59,11 +63,6 @@ static struct xrt_subdev *xrt_subdev_alloc(void)
 	return sdev;
 }
 
-static void xrt_subdev_free(struct xrt_subdev *sdev)
-{
-	kfree(sdev);
-}
-
 int xrt_subdev_root_request(struct xrt_device *self, u32 cmd, void *arg)
 {
 	struct device *dev = DEV(self);
@@ -80,7 +79,7 @@ static ssize_t holders_show(struct device *dev, struct device_attribute *attr, c
 {
 	ssize_t len;
 	struct xrt_device *xdev = to_xrt_dev(dev);
-	struct xrt_root_get_holders holders = { xdev, buf, 1024 };
+	struct xrt_root_get_holders holders = { xdev, buf, XRT_HOLDER_BUF_SZ };
 
 	len = xrt_subdev_root_request(xdev, XRT_ROOT_GET_LEAF_HOLDERS, &holders);
 	if (len >= holders.xpigh_holder_buf_len)
@@ -112,11 +111,15 @@ static ssize_t metadata_output(struct file *filp, struct kobject *kobj,
 		goto failed;
 	}
 
-	if (off >= size)
+	if (off >= size) {
+		dev_dbg(dev, "offset (%lld) beyond total size: %ld\n", off, size);
 		goto failed;
+	}
 
-	if (off + count > size)
+	if (off + count > size) {
+		dev_dbg(dev, "count (%ld) beyond left bytes: %lld\n", count, size - off);
 		count = size - off;
+	}
 	memcpy(buf, blob + off, count);
 
 	ret = count;
@@ -155,7 +158,7 @@ xrt_subdev_getres(struct device *parent, enum xrt_subdev_id id,
 	struct resource *pci_res = NULL;
 	const u64 *bar_range;
 	const u32 *bar_idx;
-	char *ep_name = NULL, *regmap = NULL;
+	char *ep_name = NULL, *compat = NULL;
 	uint bar;
 	int count1 = 0, count2 = 0, ret;
 
@@ -165,12 +168,13 @@ xrt_subdev_getres(struct device *parent, enum xrt_subdev_id id,
 	pdata = DEV_PDATA(to_xrt_dev(parent));
 
 	/* go through metadata and count endpoints in it */
-	for (xrt_md_get_next_endpoint(parent, dtb, NULL, NULL, &ep_name, &regmap); ep_name;
-	     xrt_md_get_next_endpoint(parent, dtb, ep_name, regmap, &ep_name, &regmap)) {
-		ret = xrt_md_get_prop(parent, dtb, ep_name, regmap,
+	xrt_md_get_next_endpoint(parent, dtb, NULL, NULL, &ep_name, &compat);
+	while (ep_name) {
+		ret = xrt_md_get_prop(parent, dtb, ep_name, compat,
 				      XRT_MD_PROP_IO_OFFSET, (const void **)&bar_range, NULL);
 		if (!ret)
 			count1++;
+		xrt_md_get_next_endpoint(parent, dtb, ep_name, compat, &ep_name, &compat);
 	}
 	if (!count1)
 		return 0;
@@ -179,20 +183,19 @@ xrt_subdev_getres(struct device *parent, enum xrt_subdev_id id,
 	*res = vzalloc(sizeof(**res) * count1);
 
 	/* go through all endpoints again and get IO range for each endpoint */
-	for (xrt_md_get_next_endpoint(parent, dtb, NULL, NULL, &ep_name, &regmap); ep_name;
-	     xrt_md_get_next_endpoint(parent, dtb, ep_name, regmap, &ep_name, &regmap)) {
-		ret = xrt_md_get_prop(parent, dtb, ep_name, regmap,
+	ep_name = NULL;
+	xrt_md_get_next_endpoint(parent, dtb, NULL, NULL, &ep_name, &compat);
+	while (ep_name) {
+		ret = xrt_md_get_prop(parent, dtb, ep_name, compat,
 				      XRT_MD_PROP_IO_OFFSET, (const void **)&bar_range, NULL);
 		if (ret)
 			continue;
-		xrt_md_get_prop(parent, dtb, ep_name, regmap,
+		xrt_md_get_prop(parent, dtb, ep_name, compat,
 				XRT_MD_PROP_BAR_IDX, (const void **)&bar_idx, NULL);
 		bar = bar_idx ? be32_to_cpu(*bar_idx) : 0;
-		xleaf_get_barres(to_xrt_dev(parent), &pci_res, bar);
-		(*res)[count2].start = pci_res->start +
-			be64_to_cpu(bar_range[0]);
-		(*res)[count2].end = pci_res->start +
-			be64_to_cpu(bar_range[0]) +
+		xleaf_get_root_res(to_xrt_dev(parent), bar, &pci_res);
+		(*res)[count2].start = pci_res->start + be64_to_cpu(bar_range[0]);
+		(*res)[count2].end = pci_res->start + be64_to_cpu(bar_range[0]) +
 			be64_to_cpu(bar_range[1]) - 1;
 		(*res)[count2].flags = IORESOURCE_MEM;
 		/* check if there is conflicted resource */
@@ -209,9 +212,10 @@ xrt_subdev_getres(struct device *parent, enum xrt_subdev_id id,
 		(*res)[count2].parent = pci_res;
 
 		xrt_md_find_endpoint(parent, pdata->xsp_dtb, ep_name,
-				     regmap, &(*res)[count2].name);
+				     compat, &(*res)[count2].name);
 
 		count2++;
+		xrt_md_get_next_endpoint(parent, dtb, ep_name, compat, &ep_name, &compat);
 	}
 
 	WARN_ON(count1 != count2);
@@ -245,6 +249,7 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 	struct xrt_device *xdev = NULL;
 	struct resource *res = NULL;
 	unsigned long dtb_len = 0;
+	bool dtb_alloced = false;
 	int res_num = 0;
 	size_t pdata_sz;
 	int ret;
@@ -252,7 +257,7 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 	sdev = xrt_subdev_alloc();
 	if (!sdev) {
 		dev_err(parent, "failed to alloc subdev for ID %d", id);
-		goto fail;
+		return NULL;
 	}
 	sdev->xs_id = id;
 
@@ -262,19 +267,20 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 			dev_err(parent, "can't create empty dtb: %d", ret);
 			goto fail;
 		}
+		dtb_alloced = true;
 	}
 	xrt_md_pack(parent, dtb);
 	dtb_len = xrt_md_size(parent, dtb);
 	if (dtb_len == XRT_MD_INVALID_LENGTH) {
 		dev_err(parent, "invalid metadata len %ld", dtb_len);
-		goto fail;
+		goto fail1;
 	}
 	pdata_sz = sizeof(struct xrt_subdev_platdata) + dtb_len;
 
 	/* Prepare platform data passed to subdev. */
 	pdata = vzalloc(pdata_sz);
 	if (!pdata)
-		goto fail;
+		goto fail1;
 
 	pdata->xsp_root_cb = pcb;
 	pdata->xsp_root_cb_arg = pcb_arg;
@@ -297,20 +303,20 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 		if (rc) {
 			dev_err(parent, "failed to get resource for %s: %d",
 				xrt_drv_name(id), rc);
-			goto fail;
+			goto fail2;
 		}
 	}
 	xdev = xrt_device_register(parent, id, res, res_num, pdata, pdata_sz);
 	vfree(res);
 	if (!xdev) {
 		dev_err(parent, "failed to create subdev for %s", xrt_drv_name(id));
-		goto fail;
+		goto fail2;
 	}
 	sdev->xs_xdev = xdev;
 
 	if (device_attach(DEV(xdev)) != 1) {
 		xrt_err(xdev, "failed to attach");
-		goto fail;
+		goto fail3;
 	}
 
 	if (sysfs_create_group(&DEV(xdev)->kobj, &xrt_subdev_attrgroup))
@@ -334,12 +340,15 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 	vfree(pdata);
 	return sdev;
 
-fail:
+fail3:
+	xrt_device_unregister(sdev->xs_xdev);
+fail2:
 	vfree(pdata);
-	if (sdev && !IS_ERR_OR_NULL(sdev->xs_xdev))
-		xrt_device_unregister(sdev->xs_xdev);
-
-	xrt_subdev_free(sdev);
+fail1:
+	if (dtb_alloced)
+		vfree(dtb);
+fail:
+	kfree(sdev);
 	return NULL;
 }
 
@@ -347,18 +356,15 @@ static void xrt_subdev_destroy(struct xrt_subdev *sdev)
 {
 	struct xrt_device *xdev = sdev->xs_xdev;
 	struct device *dev = DEV(xdev);
-	int ret;
 
 	/* Take down the device node */
-	if (xrt_subdev_cdev_auto_creation(xdev)) {
-		ret = xleaf_devnode_destroy(xdev);
-		WARN_ON(ret);
-	}
+	if (xrt_subdev_cdev_auto_creation(xdev))
+		xleaf_devnode_destroy(xdev);
 	if (sdev->xs_id != XRT_SUBDEV_GRP)
 		sysfs_remove_link(&find_root(xdev)->kobj, dev_name(dev));
 	sysfs_remove_group(&dev->kobj, &xrt_subdev_attrgroup);
 	xrt_device_unregister(xdev);
-	xrt_subdev_free(sdev);
+	kfree(sdev);
 }
 
 struct xrt_device *
@@ -428,6 +434,7 @@ xrt_subdev_get_holders(struct xrt_subdev *sdev, char *buf, size_t len)
 		h = list_entry(ptr, struct xrt_subdev_holder, xsh_holder_list);
 		n += snprintf(buf + n, len - n, "%s:%d ",
 			      dev_name(h->xsh_holder), kref_read(&h->xsh_kref));
+		/* Truncation is fine here. Buffer content is only for debugging. */
 		if (n >= (len - 1))
 			break;
 	}
@@ -795,19 +802,13 @@ void xleaf_hot_reset(struct xrt_device *xdev)
 }
 EXPORT_SYMBOL_GPL(xleaf_hot_reset);
 
-void xleaf_get_barres(struct xrt_device *xdev, struct resource **res, uint bar_idx)
+void xleaf_get_root_res(struct xrt_device *xdev, u32 region_id, struct resource **res)
 {
 	struct xrt_root_get_res arg = { 0 };
 
-	if (bar_idx > PCI_STD_RESOURCE_END) {
-		xrt_err(xdev, "Invalid bar idx %d", bar_idx);
-		*res = NULL;
-		return;
-	}
-
+	arg.xpigr_region_id = region_id;
 	xrt_subdev_root_request(xdev, XRT_ROOT_GET_RESOURCE, &arg);
-
-	*res = &arg.xpigr_res[bar_idx];
+	*res = arg.xpigr_res;
 }
 
 void xleaf_get_root_id(struct xrt_device *xdev, unsigned short *vendor, unsigned short *device,

@@ -62,14 +62,13 @@ struct xrt_dev_file_ops {
  */
 struct xrt_dev_ep_names {
 	const char *ep_name;
-	const char *regmap_name;
+	const char *compat;
 };
 
 struct xrt_dev_endpoints {
 	struct xrt_dev_ep_names *xse_names;
 	/* minimum number of endpoints to support the subdevice */
 	u32 xse_min_ep;
-	const char *xse_dev_name;
 };
 
 /*

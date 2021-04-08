@@ -146,7 +146,7 @@ struct axlf_header {
 					    /* when xclbin was created */
 	uint64_t feature_rom_timestamp;     /* TimeSinceEpoch of the featureRom */
 	uint16_t version_patch;	    /* Patch Version */
-	uint8_t version_major;	    /* Major Version - Version: 2.1.0*/
+	uint8_t version_major;	    /* Major Version - Version: 2.1.0 */
 	uint8_t version_minor;	    /* Minor Version */
 	uint32_t mode;		    /* XCLBIN_MODE */
 	union {
@@ -163,7 +163,7 @@ struct axlf_header {
 	union {
 		char next_axlf[16];		/* Name of next xclbin file */
 						/* in the daisy chain */
-		unsigned char uuid[16];		/* uuid of this xclbin*/
+		unsigned char uuid[16];		/* uuid of this xclbin */
 	};
 	char debug_bin[16];			/* Name of binary with debug */
 						/* information */
@@ -172,8 +172,8 @@ struct axlf_header {
 } __packed;
 
 struct axlf {
-	char magic[8];			/* Should be "xclbin2\0"  */
-	int32_t signature_length;		/* Length of the signature. */
+	char magic[8];			/* Should be "xclbin2\0" */
+	int32_t signature_length;		/* Length of the signature */
 						/* -1 indicates no signature */
 	unsigned char reserved[28];		/* Note: Initialized to 0xFFs */
 
@@ -194,15 +194,15 @@ struct xlnx_bitstream {
 
 /****	MEMORY TOPOLOGY SECTION ****/
 struct mem_data {
-	uint8_t type; /* enum corresponding to mem_type. */
+	uint8_t type; /* enum corresponding to mem_type */
 	uint8_t used; /* if 0 this bank is not present */
 	uint8_t rsvd[6];
 	union {
-		uint64_t size; /* if mem_type DDR, then size in KB; */
+		uint64_t size; /* if mem_type DDR, then size in KB */
 		uint64_t route_id; /* if streaming then "route_id" */
 	};
 	union {
-		uint64_t base_address;/* if DDR then the base address; */
+		uint64_t base_address;/* if DDR then the base address */
 		uint64_t flow_id; /* if streaming then "flow id" */
 	};
 	unsigned char tag[16]; /* DDR: BANK0,1,2,3, has to be null */
@@ -226,7 +226,7 @@ struct mem_topology {
 struct connection {
 	int32_t arg_index; /* From 0 to n, may not be contiguous as scalars */
 			   /* skipped */
-	int32_t ip_layout_index; /* index into the ip_layout section. */
+	int32_t ip_layout_index; /* index into the ip_layout section */
 			   /* ip_layout.ip_data[index].type == IP_KERNEL */
 	int32_t mem_data_index; /* index of the mem_data . Flag error is */
 				/* used false. */
@@ -255,7 +255,7 @@ enum IP_CONTROL {
 #define IP_CONTROL_MASK	 0xFF00
 #define IP_CONTROL_SHIFT 0x8
 
-/* IPs on AXI lite - their types, names, and base addresses.*/
+/* IPs on AXI lite - their types, names, and base addresses. */
 struct ip_data {
 	uint32_t type; /* map to IP_TYPE enum */
 	union {
@@ -372,7 +372,7 @@ struct bmc {
 	char device_name[64];		   /* Device ID	(e.g., VCU1525)	 */
 	char version[64];
 	char md5value[33];		   /* MD5 Expected Value */
-				/* (e.g., 56027182079c0bd621761b7dab5a27ca)*/
+				/* (e.g., 56027182079c0bd621761b7dab5a27ca) */
 	char padding[7];		   /* Padding */
 } __packed;
 
