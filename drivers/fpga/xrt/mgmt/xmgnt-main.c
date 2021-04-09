@@ -16,7 +16,7 @@
 #include "xleaf.h"
 #include <linux/xrt/xmgmt-ioctl.h>
 #include "xleaf/devctl.h"
-#include "xmgmt-main.h"
+#include "xmgnt-main.h"
 #include "xrt-mgr.h"
 #include "xleaf/icap.h"
 #include "xleaf/axigate.h"
