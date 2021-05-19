@@ -17,6 +17,26 @@
 #define BITSTREAM_EVEN_MAGIC_BYTE	0x0f
 #define BITSTREAM_ODD_MAGIC_BYTE	0xf0
 
+static inline u16 bitstream_read16(const char *data, u32 *offset)
+{
+	u16 val;
+
+	val = be16_to_cpu(*(__be16 *)(data + *offset));
+	*offset += sizeof(__be16);
+
+	return val;
+}
+
+static inline u32 bitstream_read32(const char *data, u32 *offset)
+{
+	u32 val;
+
+	val = be32_to_cpu(*(__be32 *)(data + *offset));
+	*offset += sizeof(__be32);
+
+	return val;
+}
+
 static int xrt_xclbin_get_section_hdr(const struct axlf *xclbin,
 				      enum axlf_section_kind kind,
 				      const struct axlf_section_header **header)
@@ -37,7 +57,7 @@ static int xrt_xclbin_get_section_hdr(const struct axlf *xclbin,
 		return -ENOENT;
 
 	xclbin_len = xclbin->header.length;
-	if (xclbin_len > XCLBIN_MAX_SIZE ||
+	if (xclbin_len > XCLBIN_MAX_SZ_1G || !phead->section_size ||
 	    phead->section_offset + phead->section_size > xclbin_len)
 		return -EINVAL;
 
@@ -70,9 +90,9 @@ int xrt_xclbin_get_section(struct device *dev,
 {
 	const struct axlf *xclbin = (const struct axlf *)buf;
 	void *section = NULL;
-	u64 offset = 0;
-	u64 size = 0;
-	int err = 0;
+	u64 offset;
+	u64 size;
+	int err;
 
 	if (!data) {
 		dev_err(dev, "invalid data pointer");
@@ -116,9 +136,7 @@ static inline int xclbin_bit_get_string(const unchar *data, u32 size,
 		return -EINVAL;
 
 	/* Get string length */
-	len = data[offset++];
-	len = (len << 8) | data[offset++];
-
+	len = bitstream_read16(data, &offset);
 	if (offset + len > size)
 		return -EINVAL;
 
@@ -146,9 +164,7 @@ int xrt_xclbin_parse_bitstream_header(struct device *dev, const unchar *data,
 		return -EINVAL;
 	}
 
-	len = data[offset++];
-	len = (len << 8) | data[offset++];
-
+	len = bitstream_read16(data, &offset);
 	if (offset + len > size) {
 		dev_err(dev, "invalid magic len");
 		return -EINVAL;
@@ -179,8 +195,7 @@ int xrt_xclbin_parse_bitstream_header(struct device *dev, const unchar *data,
 	}
 
 	/* Read 0x01 (short) */
-	magic = data[offset++];
-	magic = (magic << 8) | data[offset++];
+	magic = bitstream_read16(data, &offset);
 
 	/* Check the "0x01" half word */
 	if (magic != 0x01) {
@@ -230,10 +245,7 @@ int xrt_xclbin_parse_bitstream_header(struct device *dev, const unchar *data,
 	}
 
 	/* Get byte length of bitstream */
-	head_info->bitstream_length = data[offset++];
-	head_info->bitstream_length = (head_info->bitstream_length << 8) | data[offset++];
-	head_info->bitstream_length = (head_info->bitstream_length << 8) | data[offset++];
-	head_info->bitstream_length = (head_info->bitstream_length << 8) | data[offset++];
+	head_info->bitstream_length = bitstream_read32(data, &offset);
 
 	head_info->header_length = offset;
 

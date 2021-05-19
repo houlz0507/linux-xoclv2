@@ -3,7 +3,7 @@
 # Xilinx XRT FPGA device configuration
 #
 
-config FPGA_XRT_XMGNT
+config FPGA_XRT_XMGMT
 	tristate "Xilinx Alveo Management Driver"
 	depends on FPGA_XRT_LIB
 	select FPGA_XRT_METADATA

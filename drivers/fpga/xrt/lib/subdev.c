@@ -118,7 +118,7 @@ static ssize_t metadata_output(struct file *filp, struct kobject *kobj,
 
 	if (off + count > size) {
 		dev_dbg(dev, "count (%ld) beyond left bytes: %lld\n",
-		        (unsigned long)count, size - off);
+			(unsigned long)count, size - off);
 		count = size - off;
 	}
 	memcpy(buf, blob + off, count);
