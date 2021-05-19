@@ -8,9 +8,9 @@
  *      Lizhi Hou<Lizhi.Hou@xilinx.com>
  */
 
-#include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include "metadata.h"
+#include "xdevice.h"
 #include "xleaf.h"
 
 #define XRT_VSEC "xrt_vsec"
@@ -50,7 +50,7 @@ struct vsec_device {
 	u8		type;
 	char		*ep_name;
 	ulong		size;
-	char		*regmap;
+	char		*compat;
 };
 
 static struct vsec_device vsec_devs[] = {
@@ -58,37 +58,32 @@ static struct vsec_device vsec_devs[] = {
 		.type = VSEC_TYPE_UUID,
 		.ep_name = XRT_MD_NODE_BLP_ROM,
 		.size = VSEC_UUID_LEN,
-		.regmap = "vsec-uuid",
+		.compat = "vsec-uuid",
 	},
 	{
 		.type = VSEC_TYPE_FLASH,
 		.ep_name = XRT_MD_NODE_FLASH_VSEC,
 		.size = 4096,
-		.regmap = "vsec-flash",
+		.compat = "vsec-flash",
 	},
 	{
 		.type = VSEC_TYPE_PLATINFO,
 		.ep_name = XRT_MD_NODE_PLAT_INFO,
 		.size = 4,
-		.regmap = "vsec-platinfo",
+		.compat = "vsec-platinfo",
 	},
 	{
 		.type = VSEC_TYPE_MAILBOX,
 		.ep_name = XRT_MD_NODE_MAILBOX_VSEC,
 		.size = 48,
-		.regmap = "vsec-mbx",
+		.compat = "vsec-mbx",
 	},
 };
 
-static const struct regmap_config vsec_regmap_config = {
-	.reg_bits = 32,
-	.val_bits = 32,
-	.reg_stride = 4,
-	.max_register = 0x1000,
-};
+XRT_DEFINE_REGMAP_CONFIG(vsec_regmap_config);
 
 struct xrt_vsec {
-	struct platform_device	*pdev;
+	struct xrt_device	*xdev;
 	struct regmap		*regmap;
 	u32			length;
 
@@ -111,17 +106,17 @@ static inline int vsec_read_entry(struct xrt_vsec *vsec, u32 index, struct xrt_v
 
 static inline u32 vsec_get_bar(struct xrt_vsec_entry *entry)
 {
-	return ((entry)->bar_rev >> 4) & 0xf;
+	return (entry->bar_rev >> 4) & 0xf;
 }
 
 static inline u64 vsec_get_bar_off(struct xrt_vsec_entry *entry)
 {
-	return (entry)->off_lo | ((u64)(entry)->off_hi << 16);
+	return entry->off_lo | ((u64)entry->off_hi << 16);
 }
 
 static inline u32 vsec_get_rev(struct xrt_vsec_entry *entry)
 {
-	return (entry)->bar_rev & 0xf;
+	return entry->bar_rev & 0xf;
 }
 
 static char *type2epname(u32 type)
@@ -148,13 +143,13 @@ static ulong type2size(u32 type)
 	return 0;
 }
 
-static char *type2regmap(u32 type)
+static char *type2compat(u32 type)
 {
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(vsec_devs); i++) {
 		if (vsec_devs[i].type == type)
-			return (vsec_devs[i].regmap);
+			return (vsec_devs[i].compat);
 	}
 
 	return NULL;
@@ -164,7 +159,7 @@ static int xrt_vsec_add_node(struct xrt_vsec *vsec,
 			     void *md_blob, struct xrt_vsec_entry *p_entry)
 {
 	struct xrt_md_endpoint ep;
-	char regmap_ver[64];
+	char compat_ver[64];
 	int ret;
 
 	if (!type2epname(p_entry->type))
@@ -176,18 +171,18 @@ static int xrt_vsec_add_node(struct xrt_vsec *vsec,
 	 * This is not supported for now. Assuming only one mailbox
 	 */
 
-	snprintf(regmap_ver, sizeof(regmap_ver) - 1, "%d-%d.%d.%d",
+	snprintf(compat_ver, sizeof(compat_ver) - 1, "%d-%d.%d.%d",
 		 p_entry->ver_type, p_entry->major, p_entry->minor,
 		 vsec_get_rev(p_entry));
 	ep.ep_name = type2epname(p_entry->type);
-	ep.bar = vsec_get_bar(p_entry);
+	ep.bar_index = vsec_get_bar(p_entry);
 	ep.bar_off = vsec_get_bar_off(p_entry);
 	ep.size = type2size(p_entry->type);
-	ep.regmap = type2regmap(p_entry->type);
-	ep.regmap_ver = regmap_ver;
-	ret = xrt_md_add_endpoint(DEV(vsec->pdev), vsec->metadata, &ep);
+	ep.compat = type2compat(p_entry->type);
+	ep.compat_ver = compat_ver;
+	ret = xrt_md_add_endpoint(DEV(vsec->xdev), vsec->metadata, &ep);
 	if (ret)
-		xrt_err(vsec->pdev, "add ep failed, ret %d", ret);
+		xrt_err(vsec->xdev, "add ep failed, ret %d", ret);
 
 	return ret;
 }
@@ -197,9 +192,9 @@ static int xrt_vsec_create_metadata(struct xrt_vsec *vsec)
 	struct xrt_vsec_entry entry;
 	int i, ret;
 
-	ret = xrt_md_create(&vsec->pdev->dev, &vsec->metadata);
+	ret = xrt_md_create(&vsec->xdev->dev, &vsec->metadata);
 	if (ret) {
-		xrt_err(vsec->pdev, "create metadata failed");
+		xrt_err(vsec->xdev, "create metadata failed");
 		return ret;
 	}
 
@@ -207,7 +202,7 @@ static int xrt_vsec_create_metadata(struct xrt_vsec *vsec)
 	    sizeof(struct xrt_vsec_header); i++) {
 		ret = vsec_read_entry(vsec, i, &entry);
 		if (ret) {
-			xrt_err(vsec->pdev, "failed read entry %d, ret %d", i, ret);
+			xrt_err(vsec->xdev, "failed read entry %d, ret %d", i, ret);
 			goto fail;
 		}
 
@@ -226,7 +221,7 @@ fail:
 	return ret;
 }
 
-static int xrt_vsec_leaf_call(struct platform_device *pdev, u32 cmd, void *arg)
+static int xrt_vsec_leaf_call(struct xrt_device *xdev, u32 cmd, void *arg)
 {
 	int ret = 0;
 
@@ -236,7 +231,7 @@ static int xrt_vsec_leaf_call(struct platform_device *pdev, u32 cmd, void *arg)
 		break;
 	default:
 		ret = -EINVAL;
-		xrt_err(pdev, "should never been called");
+		xrt_err(xdev, "should never been called");
 		break;
 	}
 
@@ -245,90 +240,88 @@ static int xrt_vsec_leaf_call(struct platform_device *pdev, u32 cmd, void *arg)
 
 static int xrt_vsec_mapio(struct xrt_vsec *vsec)
 {
-	struct xrt_subdev_platdata *pdata = DEV_PDATA(vsec->pdev);
+	struct xrt_subdev_platdata *pdata = DEV_PDATA(vsec->xdev);
 	struct resource *res = NULL;
 	void __iomem *base = NULL;
-	const u64 *bar_off;
-	const u32 *bar;
+	const __be64 *bar_off;
+	const __be32 *bar;
 	u64 addr;
 	int ret;
 
-	if (!pdata || xrt_md_size(DEV(vsec->pdev), pdata->xsp_dtb) == XRT_MD_INVALID_LENGTH) {
-		xrt_err(vsec->pdev, "empty metadata");
+	if (!pdata || xrt_md_size(DEV(vsec->xdev), pdata->xsp_dtb) == XRT_MD_INVALID_LENGTH) {
+		xrt_err(vsec->xdev, "empty metadata");
 		return -EINVAL;
 	}
 
-	ret = xrt_md_get_prop(DEV(vsec->pdev), pdata->xsp_dtb, XRT_MD_NODE_VSEC,
+	ret = xrt_md_get_prop(DEV(vsec->xdev), pdata->xsp_dtb, XRT_MD_NODE_VSEC,
 			      NULL, XRT_MD_PROP_BAR_IDX, (const void **)&bar, NULL);
 	if (ret) {
-		xrt_err(vsec->pdev, "failed to get bar idx, ret %d", ret);
+		xrt_err(vsec->xdev, "failed to get bar idx, ret %d", ret);
 		return -EINVAL;
 	}
 
-	ret = xrt_md_get_prop(DEV(vsec->pdev), pdata->xsp_dtb, XRT_MD_NODE_VSEC,
+	ret = xrt_md_get_prop(DEV(vsec->xdev), pdata->xsp_dtb, XRT_MD_NODE_VSEC,
 			      NULL, XRT_MD_PROP_OFFSET, (const void **)&bar_off, NULL);
 	if (ret) {
-		xrt_err(vsec->pdev, "failed to get bar off, ret %d", ret);
+		xrt_err(vsec->xdev, "failed to get bar off, ret %d", ret);
 		return -EINVAL;
 	}
 
-	xrt_info(vsec->pdev, "Map vsec at bar %d, offset 0x%llx",
+	xrt_info(vsec->xdev, "Map vsec at bar %d, offset 0x%llx",
 		 be32_to_cpu(*bar), be64_to_cpu(*bar_off));
 
-	xleaf_get_barres(vsec->pdev, &res, be32_to_cpu(*bar));
+	xleaf_get_root_res(vsec->xdev, be32_to_cpu(*bar), &res);
 	if (!res) {
-		xrt_err(vsec->pdev, "failed to get bar addr");
+		xrt_err(vsec->xdev, "failed to get bar addr");
 		return -EINVAL;
 	}
 
 	addr = res->start + be64_to_cpu(*bar_off);
 
-	base = devm_ioremap(&vsec->pdev->dev, addr, vsec_regmap_config.max_register);
+	base = devm_ioremap(&vsec->xdev->dev, addr, vsec_regmap_config.max_register);
 	if (!base) {
-		xrt_err(vsec->pdev, "Map failed");
+		xrt_err(vsec->xdev, "Map failed");
 		return -EIO;
 	}
 
-	vsec->regmap = devm_regmap_init_mmio(&vsec->pdev->dev, base, &vsec_regmap_config);
+	vsec->regmap = devm_regmap_init_mmio(&vsec->xdev->dev, base, &vsec_regmap_config);
 	if (IS_ERR(vsec->regmap)) {
-		xrt_err(vsec->pdev, "regmap %pR failed", res);
+		xrt_err(vsec->xdev, "regmap %pR failed", res);
 		return PTR_ERR(vsec->regmap);
 	}
 
 	ret = regmap_read(vsec->regmap, VSEC_REG_LENGTH, &vsec->length);
 	if (ret) {
-		xrt_err(vsec->pdev, "failed to read length %d", ret);
+		xrt_err(vsec->xdev, "failed to read length %d", ret);
 		return ret;
 	}
 
 	return 0;
 }
 
-static int xrt_vsec_remove(struct platform_device *pdev)
+static void xrt_vsec_remove(struct xrt_device *xdev)
 {
 	struct xrt_vsec	*vsec;
 
-	vsec = platform_get_drvdata(pdev);
+	vsec = xrt_get_drvdata(xdev);
 
 	if (vsec->group >= 0)
-		xleaf_destroy_group(pdev, vsec->group);
+		xleaf_destroy_group(xdev, vsec->group);
 	vfree(vsec->metadata);
-
-	return 0;
 }
 
-static int xrt_vsec_probe(struct platform_device *pdev)
+static int xrt_vsec_probe(struct xrt_device *xdev)
 {
 	struct xrt_vsec	*vsec;
 	int ret = 0;
 
-	vsec = devm_kzalloc(&pdev->dev, sizeof(*vsec), GFP_KERNEL);
+	vsec = devm_kzalloc(&xdev->dev, sizeof(*vsec), GFP_KERNEL);
 	if (!vsec)
 		return -ENOMEM;
 
-	vsec->pdev = pdev;
+	vsec->xdev = xdev;
 	vsec->group = -1;
-	platform_set_drvdata(pdev, vsec);
+	xrt_set_drvdata(xdev, vsec);
 
 	ret = xrt_vsec_mapio(vsec);
 	if (ret)
@@ -336,27 +329,27 @@ static int xrt_vsec_probe(struct platform_device *pdev)
 
 	ret = xrt_vsec_create_metadata(vsec);
 	if (ret) {
-		xrt_err(pdev, "create metadata failed, ret %d", ret);
+		xrt_err(xdev, "create metadata failed, ret %d", ret);
 		goto failed;
 	}
-	vsec->group = xleaf_create_group(pdev, vsec->metadata);
+	ret = xleaf_create_group(xdev, vsec->metadata);
 	if (ret < 0) {
-		xrt_err(pdev, "create group failed, ret %d", vsec->group);
-		ret = vsec->group;
+		xrt_err(xdev, "create group failed, ret %d", vsec->group);
 		goto failed;
 	}
+	vsec->group = ret;
 
 	return 0;
 
 failed:
-	xrt_vsec_remove(pdev);
+	xrt_vsec_remove(xdev);
 
 	return ret;
 }
 
-static struct xrt_subdev_endpoints xrt_vsec_endpoints[] = {
+static struct xrt_dev_endpoints xrt_vsec_endpoints[] = {
 	{
-		.xse_names = (struct xrt_subdev_ep_names []){
+		.xse_names = (struct xrt_dev_ep_names []){
 			{ .ep_name = XRT_MD_NODE_VSEC },
 			{ NULL },
 		},
@@ -365,24 +358,15 @@ static struct xrt_subdev_endpoints xrt_vsec_endpoints[] = {
 	{ 0 },
 };
 
-static struct xrt_subdev_drvdata xrt_vsec_data = {
-	.xsd_dev_ops = {
-		.xsd_leaf_call = xrt_vsec_leaf_call,
-	},
-};
-
-static const struct platform_device_id xrt_vsec_table[] = {
-	{ XRT_VSEC, (kernel_ulong_t)&xrt_vsec_data },
-	{ },
-};
-
-static struct platform_driver xrt_vsec_driver = {
+static struct xrt_driver xrt_vsec_driver = {
 	.driver = {
 		.name = XRT_VSEC,
 	},
+	.subdev_id = XRT_SUBDEV_VSEC,
+	.endpoints = xrt_vsec_endpoints,
 	.probe = xrt_vsec_probe,
 	.remove = xrt_vsec_remove,
-	.id_table = xrt_vsec_table,
+	.leaf_call = xrt_vsec_leaf_call,
 };
 
-XRT_LEAF_INIT_FINI_FUNC(XRT_SUBDEV_VSEC, vsec);
+XRT_LEAF_INIT_FINI_FUNC(vsec);

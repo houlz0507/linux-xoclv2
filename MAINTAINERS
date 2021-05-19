@@ -6916,7 +6916,7 @@ M:	Lizhi Hou <lizhi.hou@xilinx.com>
 R:	Max Zhen <max.zhen@xilinx.com>
 R:	Sonal Santan <sonal.santan@xilinx.com>
 L:	linux-fpga@vger.kernel.org
-S:	Maintained
+S:	Supported
 W:	https://github.com/Xilinx/XRT
 F:	Documentation/fpga/xrt.rst
 F:	drivers/fpga/xrt/

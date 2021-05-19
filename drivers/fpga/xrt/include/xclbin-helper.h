@@ -16,7 +16,7 @@
 
 #define XCLBIN_VERSION2	"xclbin2"
 #define XCLBIN_HWICAP_BITFILE_BUF_SZ 1024
-#define XCLBIN_MAX_SIZE (1024 * 1024 * 1024) /* Assuming xclbin <= 1G, always */
+#define XCLBIN_MAX_SZ_1G (1024 * 1024 * 1024) /* Assuming xclbin <= 1G, always */
 
 enum axlf_section_kind;
 struct axlf;

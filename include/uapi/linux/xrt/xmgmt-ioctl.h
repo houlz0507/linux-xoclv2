@@ -6,8 +6,8 @@
 
 /**
  * DOC: PCIe Kernel Driver for Management Physical Function
- * Interfaces exposed by *xclmgmt* driver are defined in file, *mgmt-ioctl.h*.
- * Core functionality provided by *xmgmt* driver is described in the following table:
+ * Interfaces exposed by *xrt-mgmt* driver are defined in file, *xmgmt-ioctl.h*.
+ * Core functionality provided by *xrt-mgmt* driver is described in the following table:
  *
  * =========== ============================== ==================================
  * Functionality           ioctl request code           data format
