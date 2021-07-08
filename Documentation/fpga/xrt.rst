@@ -67,7 +67,8 @@ drivers found on various Alveo shells. See :ref:`alveo_platform_overview`.
 
 The instantiation of specific group driver or xleaf drivers is completely data
 driven based on metadata (mostly in device tree format) found through VSEC
-capability and inside the firmware files, such as platform xsabin or user xclbin file.
+capability and inside the firmware files, such as platform xsabin or user xclbin
+file.
 
 
 Driver Object Model
@@ -221,7 +222,7 @@ a group driver and may or may not have real IO mem or IRQ resources. They
 manage HW subsystems they are attached to.
 
 A xleaf driver without real hardware resources manages in-memory states for
-xrt-mgmt. These in-memory states are sharable by multiple other xleaf.
+xrt-mgmt. These states are shareable by other xleaf drivers.
 
 Xleaf drivers assigned to specific hardware resources drive a specific subsystem
 in the device. To manipulate the subsystem or carry out a task, a xleaf driver
@@ -274,8 +275,9 @@ fpga_bridge and fpga_region for the next region in the chain.
 fpga_bridge
 -----------
 
-Like the fpga_region, fpga_bridge is also created by walking the
-device tree of the parent group.
+Like the fpga_region, a fpga_bridge is created by walking the device tree
+of the parent group. The bridge is used for isolation between a parent and
+its child.
 
 Driver Interfaces
 =================
@@ -283,8 +285,8 @@ Driver Interfaces
 xrt-mgmt Driver Ioctls
 ----------------------
 
-Ioctls exposed by the xrt-mgmt driver to user space are enumerated in the following
-table:
+Ioctls exposed by the xrt-mgmt driver to user space are enumerated in the
+following table:
 
 == ===================== ============================ ==========================
 #  Functionality         ioctl request code            data format
@@ -300,7 +302,7 @@ suite. See example usage below::
 xrt-mgmt Driver Sysfs
 ----------------------
 
-xrt-mgmt driver exposes a rich set of sysfs interfaces. Subsystem xrt
+The xrt-mgmt driver exposes a rich set of sysfs interfaces. Subsystem xrt
 drivers export sysfs node for every platform instance.
 
 Every partition also exports its UUIDs. See below for examples::
@@ -328,9 +330,9 @@ clocking, reset, and security. DFX, partial reconfiguration, is responsible for
 loading the user compiled FPGA binary.
 
 For DFX to work properly, physical partitions require strict HW compatibility
-with each other. Every physical partition has two interface UUIDs: the *parent* UUID
-and the *child* UUID. For simple single stage platforms, Shell → User forms parent
-child relationship.
+with each other. Every physical partition has two interface UUIDs: the *parent*
+UUID and the *child* UUID. For simple single stage platforms, Shell → User forms
+the parent child relationship.
 
 .. note::
    Partition compatibility matching is a key design component of the Alveo platforms
@@ -368,9 +370,9 @@ Loading Sequence
 
 The Shell partition is loaded from flash at system boot time. It establishes the
 PCIe link and exposes two physical functions to the BIOS. After the OS boots,
-xrt-mgmt driver attaches to the PCIe physical function 0 exposed by the Shell
+the xrt-mgmt driver attaches to the PCIe physical function 0 exposed by the Shell
 and then looks for VSEC in the PCIe extended configuration space. Using VSEC, it
-determines the logic UUID of Shell and uses the UUID to load matching *xsabin*
+determines the logic UUID of the Shell and uses the UUID to load matching *xsabin*
 file from Linux firmware directory. The xsabin file contains the metadata to
 discover the peripherals that are part of the Shell and the firmware for any
 embedded soft processors in the Shell. The xsabin file also contains Partition
@@ -384,7 +386,7 @@ interface UUID exported by the Shell to determine if the xclbin is compatible wi
 the Shell. If the match fails, loading of xclbin is denied.
 
 xclbin loading is requested using the ICAP_DOWNLOAD_AXLF ioctl command. When loading
-a xclbin, xrt-mgmt driver performs the following *logical* operations:
+a xclbin, the xrt-mgmt driver performs the following *logical* operations:
 
 1. Copy xclbin from user to kernel memory
 2. Sanity check the xclbin contents
@@ -456,12 +458,12 @@ The following figure illustrates a typical xclbin::
            +---------------------+
 
 
-xclbin/xsabin files can be packaged, un-packaged and inspected using a XRT
+xclbin/xsabin files can be packaged, un-packaged and inspected using an XRT
 utility called **xclbinutil**. xclbinutil is part of the XRT open source
 software stack. The source code for xclbinutil can be found at
 https://github.com/Xilinx/XRT/tree/master/src/runtime_src/tools/xclbinutil
 
-For example to enumerate the contents of a xclbin/xsabin use the *--info* switch
+For example, to enumerate the contents of a xclbin/xsabin use the *--info* switch
 as shown below::
 
 
@@ -477,8 +479,8 @@ Device Tree Usage
 The xsabin file stores metadata which advertise HW subsystems present in a
 partition. The metadata is stored in device tree format with a well defined
 schema. XRT management driver uses this information to bind *xrt_drivers* to
-the subsystem instantiations. The xrt_drivers are found in **xrt-lib.ko**
-kernel module defined earlier.
+the subsystem instantiations. The xrt_drivers are found in **xrt-lib.ko** kernel
+module.
 
 Logic UUID
 ^^^^^^^^^^
@@ -508,8 +510,8 @@ Schema version is defined through the ``schema_version`` node. It contains
 
 Partition UUIDs
 ^^^^^^^^^^^^^^^
-Each partition may have parent and child UUIDs. These UUIDs are defined by
-``interfaces`` node and ``interface_uuid`` property::
+Each partition may have parent and child UUIDs. These UUIDs are
+defined by ``interfaces`` node and ``interface_uuid`` property::
 
   /dts-v1/;
   / {
@@ -791,9 +793,9 @@ Deployment Models
 Baremetal
 ---------
 
-In bare-metal deployments, both MPF and UPF are visible and accessible. xrt-mgmt
-driver binds to MPF. xrt-mgmt driver operations are privileged and available to
-system administrator. The full stack is illustrated below::
+In bare-metal deployments, both MPF and UPF are visible and accessible. The
+xrt-mgmt driver binds to MPF. The xrt-mgmt driver operations are privileged and
+available to system administrator. The full stack is illustrated below::
 
                             HOST
 
@@ -826,9 +828,9 @@ Virtualized
 -----------
 
 In virtualized deployments, the privileged MPF is assigned to the host but the
-unprivileged UPF is assigned to a guest VM via PCIe pass-through. The xrt-mgmt driver
-in host binds to MPF. xrt-mgmt driver operations are privileged and only accessible
-to the MPF. The full stack is illustrated below::
+unprivileged UPF is assigned to a guest VM via PCIe pass-through. The xrt-mgmt
+driver in host binds to MPF. The xrt-mgmt driver operations are privileged and
+only accessible to the MPF. The full stack is illustrated below::
 
 
                                  ..............
