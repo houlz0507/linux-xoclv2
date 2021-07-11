@@ -9,9 +9,9 @@
  */
 
 #include <linux/regmap.h>
-#include "metadata.h"
-#include "xdevice.h"
-#include "xleaf.h"
+#include <linux/xrt/metadata.h>
+#include <linux/xrt/xdevice.h>
+#include <linux/xrt/xleaf.h>
 
 #define XRT_VSEC "xrt_vsec"
 

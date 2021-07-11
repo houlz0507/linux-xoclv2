@@ -13,9 +13,9 @@
 #include <linux/device.h>
 #include <linux/regmap.h>
 #include <linux/io.h>
-#include "metadata.h"
-#include "xleaf.h"
-#include "xleaf/clock.h"
+#include <linux/xrt/metadata.h>
+#include <linux/xrt/xleaf.h>
+#include <linux/xrt/xleaf/clock.h>
 
 #define UCS_ERR(ucs, fmt, arg...)   \
 	xrt_err((ucs)->xdev, fmt "\n", ##arg)

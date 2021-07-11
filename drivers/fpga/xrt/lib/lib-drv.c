@@ -10,8 +10,8 @@
 #include <linux/module.h>
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
-#include "xleaf.h"
-#include "xroot.h"
+#include <linux/xrt/xleaf.h>
+#include <linux/xrt/xroot.h>
 #include "lib-drv.h"
 
 #define XRT_IPLIB_MODULE_NAME		"xrt-lib"
@@ -23,7 +23,7 @@
 
 struct xrt_find_drv_data {
 	enum xrt_subdev_id id;
-	struct xrt_driver *xdrv;
+	void *arg;
 };
 
 struct class *xrt_class;
@@ -123,13 +123,57 @@ void xrt_unregister_driver(struct xrt_driver *drv)
 }
 EXPORT_SYMBOL_GPL(xrt_unregister_driver);
 
-static int __find_driver(struct device_driver *drv, void *_data)
+static int __get_driver(struct device_driver *drv, void *_data)
+{
+	struct xrt_driver *xdrv = to_xrt_drv(drv);
+	struct xrt_find_drv_data *data = _data;
+	int ret = 0;
+
+	if (xdrv->subdev_id == data->id) {
+		if (xdrv->driver.owner != THIS_MODULE)
+			ret = try_module_get(xdrv->driver.owner);
+		*(int *)data->arg = ret;
+
+		return 1;
+	}
+
+	return 0;
+}
+
+static int __put_driver(struct device_driver *drv, void *_data)
 {
 	struct xrt_driver *xdrv = to_xrt_drv(drv);
 	struct xrt_find_drv_data *data = _data;
 
 	if (xdrv->subdev_id == data->id) {
-		data->xdrv = xdrv;
+		if (xdrv->driver.owner != THIS_MODULE)
+			module_put(xdrv->driver.owner);
+		return 1;
+	}
+
+	return 0;
+}
+
+static int __get_driver_name(struct device_driver *drv, void *_data)
+{
+	struct xrt_driver *xdrv = to_xrt_drv(drv);
+	struct xrt_find_drv_data *data = _data;
+
+	if (xdrv->subdev_id == data->id) {
+		data->arg = (char *)XRT_DRVNAME(xdrv);
+		return 1;
+	}
+
+	return 0;
+}
+
+static int __get_driver_endpoints(struct device_driver *drv, void *_data)
+{
+	struct xrt_driver *xdrv = to_xrt_drv(drv);
+	struct xrt_find_drv_data *data = _data;
+
+	if (xdrv->subdev_id == data->id) {
+		data->arg = xdrv->endpoints;
 		return 1;
 	}
 
@@ -141,12 +185,9 @@ const char *xrt_drv_name(enum xrt_subdev_id id)
 	struct xrt_find_drv_data data = { 0 };
 
 	data.id = id;
-	bus_for_each_drv(&xrt_bus_type, NULL, &data, __find_driver);
+	bus_for_each_drv(&xrt_bus_type, NULL, &data, __get_driver_name);
 
-	if (data.xdrv)
-		return XRT_DRVNAME(data.xdrv);
-
-	return NULL;
+	return data.arg;
 }
 
 static int xrt_drv_get_instance(enum xrt_subdev_id id)
@@ -167,17 +208,34 @@ static void xrt_drv_put_instance(enum xrt_subdev_id id, int instance)
 	ida_free(&xrt_device_ida, xrt_instance_to_id(id, instance));
 }
 
+int xrt_drv_get(enum xrt_subdev_id id)
+{
+	struct xrt_find_drv_data data = { 0 };
+	int ret;
+
+	data.id = id;
+	data.arg = &ret;
+	bus_for_each_drv(&xrt_bus_type, NULL, &data, __get_driver);
+
+	return ret;
+}
+
+void xrt_drv_put(enum xrt_subdev_id id)
+{
+	struct xrt_find_drv_data data = { 0 };
+
+	data.id = id;
+	bus_for_each_drv(&xrt_bus_type, NULL, &data, __put_driver);
+}
+
 struct xrt_dev_endpoints *xrt_drv_get_endpoints(enum xrt_subdev_id id)
 {
 	struct xrt_find_drv_data data = { 0 };
 
 	data.id = id;
-	bus_for_each_drv(&xrt_bus_type, NULL, &data, __find_driver);
+	bus_for_each_drv(&xrt_bus_type, NULL, &data, __get_driver_endpoints);
 
-	if (data.xdrv)
-		return data.xdrv->endpoints;
-
-	return NULL;
+	return data.arg;
 }
 
 static void xrt_device_release(struct device *dev)
@@ -271,6 +329,7 @@ struct resource *xrt_get_resource(struct xrt_device *xdev, u32 type, u32 num)
 	}
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(xrt_get_resource);
 
 /*
  * Leaf driver's module init/fini callbacks. This is not a open infrastructure for dynamic
@@ -279,7 +338,6 @@ struct resource *xrt_get_resource(struct xrt_device *xdev, u32 type, u32 num)
 static void (*leaf_init_fini_cbs[])(bool) = {
 	group_leaf_init_fini,
 	vsec_leaf_init_fini,
-	devctl_leaf_init_fini,
 	axigate_leaf_init_fini,
 	icap_leaf_init_fini,
 	calib_leaf_init_fini,

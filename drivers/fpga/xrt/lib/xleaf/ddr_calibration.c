@@ -11,9 +11,9 @@
  */
 #include <linux/delay.h>
 #include <linux/regmap.h>
-#include "xclbin-helper.h"
-#include "metadata.h"
-#include "xleaf/ddr_calibration.h"
+#include <linux/xrt/xclbin-helper.h>
+#include <linux/xrt/metadata.h>
+#include <linux/xrt/xleaf/ddr_calibration.h>
 
 #define XRT_CALIB	"xrt_calib"
 

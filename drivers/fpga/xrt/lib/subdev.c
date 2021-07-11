@@ -8,10 +8,10 @@
 
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
-#include "xleaf.h"
+#include <linux/xrt/xleaf.h>
+#include <linux/xrt/metadata.h>
 #include "subdev_pool.h"
 #include "lib-drv.h"
-#include "metadata.h"
 
 extern struct bus_type xrt_bus_type;
 
@@ -349,6 +349,10 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 	if (xrt_subdev_cdev_auto_creation(xdev))
 		xleaf_devnode_create(xdev, DEV_FILE_OPS(xdev)->xsf_dev_name, NULL);
 
+	/* this should never fail */
+	ret = xrt_drv_get(id);
+	WARN_ON(ret);
+
 	vfree(pdata);
 	return sdev;
 
@@ -376,6 +380,7 @@ static void xrt_subdev_destroy(struct xrt_subdev *sdev)
 		sysfs_remove_link(&find_root(xdev)->kobj, dev_name(dev));
 	sysfs_remove_group(&dev->kobj, &xrt_subdev_attrgroup);
 	xrt_device_unregister(xdev);
+	xrt_drv_put(sdev->xs_id);
 	kfree(sdev);
 }
 

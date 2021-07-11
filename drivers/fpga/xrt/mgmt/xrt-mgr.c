@@ -13,11 +13,11 @@
 #include <linux/module.h>
 #include <linux/vmalloc.h>
 
-#include "xclbin-helper.h"
-#include "xleaf.h"
+#include <linux/xrt/xclbin-helper.h>
+#include <linux/xrt/xleaf.h>
+#include <linux/xrt/xleaf/axigate.h>
+#include <linux/xrt/xleaf/icap.h>
 #include "xrt-mgr.h"
-#include "xleaf/axigate.h"
-#include "xleaf/icap.h"
 #include "xmgmt.h"
 
 struct xfpga_class {

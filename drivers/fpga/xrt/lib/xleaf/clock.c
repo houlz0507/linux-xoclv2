@@ -15,10 +15,10 @@
 #include <linux/device.h>
 #include <linux/regmap.h>
 #include <linux/io.h>
-#include "metadata.h"
-#include "xleaf.h"
-#include "xleaf/clock.h"
-#include "xleaf/clkfreq.h"
+#include <linux/xrt/metadata.h>
+#include <linux/xrt/xleaf.h>
+#include <linux/xrt/xleaf/clock.h>
+#include <linux/xrt/xleaf/clkfreq.h>
 
 /* XRT_CLOCK_MAX_NUM_CLOCKS should be a concept from XCLBIN_ in the future */
 #define XRT_CLOCK_MAX_NUM_CLOCKS	4

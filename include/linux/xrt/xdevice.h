@@ -100,6 +100,13 @@ struct xrt_driver {
 
 #define to_xrt_dev(d) container_of(d, struct xrt_device, dev)
 #define to_xrt_drv(d) container_of(d, struct xrt_driver, driver)
+/*
+ * module_xrt_driver() - Helper macro for drivers that don't do
+ * anything special in module init/exit.
+ */
+#define module_xrt_driver(__xrt_driver)				\
+	module_driver(__xrt_driver, xrt_register_driver,	\
+		      xrt_unregister_driver)
 
 static inline void *xrt_get_drvdata(const struct xrt_device *xdev)
 {

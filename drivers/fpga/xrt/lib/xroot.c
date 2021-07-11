@@ -10,10 +10,10 @@
 
 #include <linux/module.h>
 #include <linux/hwmon.h>
-#include "xroot.h"
+#include <linux/xrt/xroot.h>
+#include <linux/xrt/group.h>
+#include <linux/xrt/metadata.h>
 #include "subdev_pool.h"
-#include "group.h"
-#include "metadata.h"
 
 #define xroot_err(xr, fmt, args...) dev_err((xr)->dev, "%s: " fmt, __func__, ##args)
 #define xroot_warn(xr, fmt, args...) dev_warn((xr)->dev, "%s: " fmt, __func__, ##args)

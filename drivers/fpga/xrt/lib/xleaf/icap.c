@@ -15,10 +15,10 @@
 #include <linux/device.h>
 #include <linux/regmap.h>
 #include <linux/io.h>
-#include "metadata.h"
-#include "xleaf.h"
-#include "xleaf/icap.h"
-#include "xclbin-helper.h"
+#include <linux/xrt/metadata.h>
+#include <linux/xrt/xleaf.h>
+#include <linux/xrt/xleaf/icap.h>
+#include <linux/xrt/xclbin-helper.h>
 
 #define XRT_ICAP "xrt_icap"
 

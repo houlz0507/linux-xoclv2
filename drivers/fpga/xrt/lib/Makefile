@@ -19,7 +19,6 @@ xrt-lib-objs :=			\
 	group.o			\
 	xleaf/vsec.o		\
 	xleaf/axigate.o		\
-	xleaf/devctl.o		\
 	xleaf/icap.o		\
 	xleaf/clock.o		\
 	xleaf/clkfreq.o		\

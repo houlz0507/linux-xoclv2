@@ -13,9 +13,9 @@
 #include <linux/device.h>
 #include <linux/regmap.h>
 #include <linux/io.h>
-#include "metadata.h"
-#include "xleaf.h"
-#include "xleaf/clkfreq.h"
+#include <linux/xrt/metadata.h>
+#include <linux/xrt/xleaf.h>
+#include <linux/xrt/xleaf/clkfreq.h>
 
 #define CLKFREQ_ERR(clkfreq, fmt, arg...)   \
 	xrt_err((clkfreq)->xdev, fmt "\n", ##arg)
