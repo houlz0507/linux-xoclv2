@@ -93,7 +93,6 @@ int xrt_register_driver(struct xrt_driver *drv)
 		drv->file_ops.xsf_dev_t = (dev_t)-1;
 	}
 
-	drv->driver.owner = THIS_MODULE;
 	drv->driver.bus = &xrt_bus_type;
 
 	rc = driver_register(&drv->driver);
@@ -127,12 +126,14 @@ static int __get_driver(struct device_driver *drv, void *_data)
 {
 	struct xrt_driver *xdrv = to_xrt_drv(drv);
 	struct xrt_find_drv_data *data = _data;
-	int ret = 0;
 
 	if (xdrv->subdev_id == data->id) {
-		if (xdrv->driver.owner != THIS_MODULE)
-			ret = try_module_get(xdrv->driver.owner);
-		*(int *)data->arg = ret;
+		if (xdrv->driver.owner && xdrv->driver.owner != THIS_MODULE) {
+			if (try_module_get(xdrv->driver.owner))
+				*(int *)data->arg = 0;
+		} else {
+			*(int *)data->arg = 0;
+		}
 
 		return 1;
 	}
@@ -146,7 +147,7 @@ static int __put_driver(struct device_driver *drv, void *_data)
 	struct xrt_find_drv_data *data = _data;
 
 	if (xdrv->subdev_id == data->id) {
-		if (xdrv->driver.owner != THIS_MODULE)
+		if (xdrv->driver.owner && xdrv->driver.owner != THIS_MODULE)
 			module_put(xdrv->driver.owner);
 		return 1;
 	}
@@ -211,7 +212,7 @@ static void xrt_drv_put_instance(enum xrt_subdev_id id, int instance)
 int xrt_drv_get(enum xrt_subdev_id id)
 {
 	struct xrt_find_drv_data data = { 0 };
-	int ret;
+	int ret = -EINVAL;
 
 	data.id = id;
 	data.arg = &ret;

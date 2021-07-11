@@ -166,6 +166,7 @@ MODULE_DEVICE_TABLE(xrt, xrt_devctl_ids);
 static struct xrt_driver xrt_devctl_driver = {
 	.driver = {
 		.name = XRT_DEVCTL,
+		.owner = THIS_MODULE,
 	},
 	.subdev_id = XRT_SUBDEV_DEVCTL,
 	.endpoints = xrt_devctl_endpoints,
