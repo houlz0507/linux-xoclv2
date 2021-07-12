@@ -138,10 +138,6 @@ static int xrt_grp_create_leaves(struct xrt_group *xg)
 	memcpy(grp_dtb, pdata->xsp_dtb, mlen);
 	for (did = 0; did < XRT_SUBDEV_NUM; did++) {
 		ret = xrt_drv_get(did);
-		if (ret) {
-			request_module("xrt:d%08X", did);
-			ret = xrt_drv_get(did);
-		}
 		if (ret)
 			continue;
 		eps = xrt_drv_get_endpoints(did);

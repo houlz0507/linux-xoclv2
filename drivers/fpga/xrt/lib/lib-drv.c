@@ -218,6 +218,11 @@ int xrt_drv_get(enum xrt_subdev_id id)
 	data.arg = &ret;
 	bus_for_each_drv(&xrt_bus_type, NULL, &data, __get_driver);
 
+	if (ret) {
+		request_module("xrt:d%08X", id);
+		bus_for_each_drv(&xrt_bus_type, NULL, &data, __get_driver);
+	}
+
 	return ret;
 }
 
