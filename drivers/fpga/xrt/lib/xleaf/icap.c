@@ -19,6 +19,7 @@
 #include <linux/xrt/xleaf.h>
 #include <linux/xrt/xleaf/icap.h>
 #include <linux/xrt/xclbin-helper.h>
+#include "../lib-drv.h"
 
 #define XRT_ICAP "xrt_icap"
 

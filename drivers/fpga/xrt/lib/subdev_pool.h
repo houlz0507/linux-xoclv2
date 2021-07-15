@@ -11,7 +11,7 @@
 
 #include <linux/device.h>
 #include <linux/mutex.h>
-#include <linux/xrt/xroot.h>
+#include "xroot.h"
 
 /*
  * The struct xrt_subdev_pool manages a list of xrt_subdevs for root and group drivers.

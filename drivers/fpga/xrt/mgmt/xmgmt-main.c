@@ -142,7 +142,7 @@ static ssize_t VBNV_show(struct device *dev, struct device_attribute *da, char *
 }
 static DEVICE_ATTR_RO(VBNV);
 
-/* logic uuid is the uuid uniquely identfy the partition */
+/* logic uuid is the uuid uniquely identify the partition */
 static ssize_t logic_uuids_show(struct device *dev, struct device_attribute *da, char *buf)
 {
 	struct xrt_device *xdev = to_xrt_dev(dev);

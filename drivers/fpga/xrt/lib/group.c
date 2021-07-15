@@ -11,8 +11,8 @@
 #include <linux/mod_devicetable.h>
 #include <linux/kmod.h>
 #include <linux/xrt/xleaf.h>
-#include <linux/xrt/group.h>
 #include <linux/xrt/metadata.h>
+#include "group.h"
 #include "subdev_pool.h"
 #include "lib-drv.h"
 

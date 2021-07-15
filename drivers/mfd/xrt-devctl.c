@@ -8,7 +8,6 @@
  *      Lizhi Hou<Lizhi.Hou@xilinx.com>
  */
 
-#include <linux/mod_devicetable.h>
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/device.h>
@@ -168,6 +167,7 @@ static struct xrt_driver xrt_devctl_driver = {
 		.name = XRT_DEVCTL,
 		.owner = THIS_MODULE,
 	},
+	.id_table = xrt_devctl_ids,
 	.subdev_id = XRT_SUBDEV_DEVCTL,
 	.endpoints = xrt_devctl_endpoints,
 	.probe = xrt_devctl_probe,

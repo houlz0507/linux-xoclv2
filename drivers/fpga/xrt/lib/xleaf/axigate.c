@@ -16,6 +16,7 @@
 #include <linux/xrt/metadata.h>
 #include <linux/xrt/xleaf.h>
 #include <linux/xrt/xleaf/axigate.h>
+#include "../lib-drv.h"
 
 #define XRT_AXIGATE "xrt_axigate"
 

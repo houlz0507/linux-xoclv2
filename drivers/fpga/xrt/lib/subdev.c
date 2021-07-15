@@ -65,14 +65,16 @@ static struct xrt_subdev *xrt_subdev_alloc(void)
 
 int xrt_subdev_root_request(struct xrt_device *self, u32 cmd, void *arg)
 {
-	struct device *dev = DEV(self);
 	struct xrt_subdev_platdata *pdata = DEV_PDATA(self);
+	struct device *dev = DEV(self);
+	xrt_subdev_root_cb_t root_cb;
 
 	if (!pdata->xsp_root_cb) {
 		dev_err(dev, "invalid root callback");
 		return -EINVAL;
 	}
-	return (*pdata->xsp_root_cb)(dev->parent, pdata->xsp_root_cb_arg, cmd, arg);
+	root_cb = pdata->xsp_root_cb;
+	return (*root_cb)(dev->parent, pdata->xsp_root_cb_arg, cmd, arg);
 }
 
 /*
@@ -827,6 +829,7 @@ void xleaf_get_root_res(struct xrt_device *xdev, u32 region_id, struct resource 
 	xrt_subdev_root_request(xdev, XRT_ROOT_GET_RESOURCE, &arg);
 	*res = arg.xpigr_res;
 }
+EXPORT_SYMBOL_GPL(xleaf_get_root_res);
 
 void xleaf_get_root_id(struct xrt_device *xdev, unsigned short *vendor, unsigned short *device,
 		       unsigned short *subvendor, unsigned short *subdevice)

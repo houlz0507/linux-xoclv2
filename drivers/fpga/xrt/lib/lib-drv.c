@@ -10,8 +10,7 @@
 #include <linux/module.h>
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
-#include <linux/xrt/xleaf.h>
-#include <linux/xrt/xroot.h>
+#include "xroot.h"
 #include "lib-drv.h"
 
 #define XRT_IPLIB_MODULE_NAME		"xrt-lib"
@@ -343,13 +342,8 @@ EXPORT_SYMBOL_GPL(xrt_get_resource);
  */
 static void (*leaf_init_fini_cbs[])(bool) = {
 	group_leaf_init_fini,
-	vsec_leaf_init_fini,
 	axigate_leaf_init_fini,
 	icap_leaf_init_fini,
-	calib_leaf_init_fini,
-	clkfreq_leaf_init_fini,
-	clock_leaf_init_fini,
-	ucs_leaf_init_fini,
 };
 
 static __init int xrt_lib_init(void)

@@ -115,7 +115,7 @@ static int xmgmt_pr_write_init(struct fpga_manager *mgr,
 }
 
 /*
- * The implementation requries full xclbin image before we can start
+ * The implementation requires full xclbin image before we can start
  * programming the hardware via ICAP subsystem. The full image is required
  * for checking the validity of xclbin and walking the sections to
  * discover the bitstream.
