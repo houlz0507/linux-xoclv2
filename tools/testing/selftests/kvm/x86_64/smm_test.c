@@ -55,8 +55,8 @@ static inline void sync_with_host(uint64_t phase)
 
 void self_smi(void)
 {
-	wrmsr(APIC_BASE_MSR + (APIC_ICR >> 4),
-	      APIC_DEST_SELF | APIC_INT_ASSERT | APIC_DM_SMI);
+	x2apic_write_reg(APIC_ICR,
+			 APIC_DEST_SELF | APIC_INT_ASSERT | APIC_DM_SMI);
 }
 
 void guest_code(void *arg)
@@ -101,8 +101,6 @@ int main(int argc, char *argv[])
 
 	/* Create VM */
 	vm = vm_create_default(VCPU_ID, 0, guest_code);
-
-	vcpu_set_cpuid(vm, VCPU_ID, kvm_get_supported_cpuid());
 
 	run = vcpu_state(vm, VCPU_ID);
 

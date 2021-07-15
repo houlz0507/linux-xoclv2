@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
-/******************************************************************************
- *
- * Copyright(c) 2020 Intel Corporation
- *
- *****************************************************************************/
+/*
+ * Copyright(c) 2020-2021 Intel Corporation
+ */
 
 #include "iwl-drv.h"
 #include "pnvm.h"
@@ -12,6 +10,7 @@
 #include "fw/api/commands.h"
 #include "fw/api/nvm-reg.h"
 #include "fw/api/alive.h"
+#include "fw/uefi.h"
 
 struct iwl_pnvm_section {
 	__le32 offset;
@@ -198,13 +197,13 @@ static int iwl_pnvm_parse(struct iwl_trans *trans, const u8 *data,
 				     le32_to_cpu(sku_id->data[1]),
 				     le32_to_cpu(sku_id->data[2]));
 
+			data += sizeof(*tlv) + ALIGN(tlv_len, 4);
+			len -= ALIGN(tlv_len, 4);
+
 			if (trans->sku_id[0] == le32_to_cpu(sku_id->data[0]) &&
 			    trans->sku_id[1] == le32_to_cpu(sku_id->data[1]) &&
 			    trans->sku_id[2] == le32_to_cpu(sku_id->data[2])) {
 				int ret;
-
-				data += sizeof(*tlv) + ALIGN(tlv_len, 4);
-				len -= ALIGN(tlv_len, 4);
 
 				ret = iwl_pnvm_handle_section(trans, data, len);
 				if (!ret)
@@ -221,23 +220,11 @@ static int iwl_pnvm_parse(struct iwl_trans *trans, const u8 *data,
 	return -ENOENT;
 }
 
-int iwl_pnvm_load(struct iwl_trans *trans,
-		  struct iwl_notif_wait_data *notif_wait)
+static int iwl_pnvm_get_from_fs(struct iwl_trans *trans, u8 **data, size_t *len)
 {
 	const struct firmware *pnvm;
-	struct iwl_notification_wait pnvm_wait;
-	static const u16 ntf_cmds[] = { WIDE_ID(REGULATORY_AND_NVM_GROUP,
-						PNVM_INIT_COMPLETE_NTFY) };
 	char pnvm_name[64];
 	int ret;
-
-	/* if the SKU_ID is empty, there's nothing to do */
-	if (!trans->sku_id[0] && !trans->sku_id[1] && !trans->sku_id[2])
-		return 0;
-
-	/* if we already have it, nothing to do either */
-	if (trans->pnvm_loaded)
-		return 0;
 
 	/*
 	 * The prefix unfortunately includes a hyphen at the end, so
@@ -254,12 +241,102 @@ int iwl_pnvm_load(struct iwl_trans *trans,
 	if (ret) {
 		IWL_DEBUG_FW(trans, "PNVM file %s not found %d\n",
 			     pnvm_name, ret);
-	} else {
-		iwl_pnvm_parse(trans, pnvm->data, pnvm->size);
-
-		release_firmware(pnvm);
+		return ret;
 	}
 
+	*data = kmemdup(pnvm->data, pnvm->size, GFP_KERNEL);
+	if (!*data)
+		return -ENOMEM;
+
+	*len = pnvm->size;
+
+	return 0;
+}
+
+int iwl_pnvm_load(struct iwl_trans *trans,
+		  struct iwl_notif_wait_data *notif_wait)
+{
+	u8 *data;
+	size_t len;
+	struct pnvm_sku_package *package;
+	struct iwl_notification_wait pnvm_wait;
+	static const u16 ntf_cmds[] = { WIDE_ID(REGULATORY_AND_NVM_GROUP,
+						PNVM_INIT_COMPLETE_NTFY) };
+	int ret;
+
+	/* if the SKU_ID is empty, there's nothing to do */
+	if (!trans->sku_id[0] && !trans->sku_id[1] && !trans->sku_id[2])
+		return 0;
+
+	/*
+	 * If we already loaded (or tried to load) it before, we just
+	 * need to set it again.
+	 */
+	if (trans->pnvm_loaded) {
+		ret = iwl_trans_set_pnvm(trans, NULL, 0);
+		if (ret)
+			return ret;
+		goto skip_parse;
+	}
+
+	/* First attempt to get the PNVM from BIOS */
+	package = iwl_uefi_get_pnvm(trans, &len);
+	if (!IS_ERR_OR_NULL(package)) {
+		data = kmemdup(package->data, len, GFP_KERNEL);
+
+		/* free package regardless of whether kmemdup succeeded */
+		kfree(package);
+
+		if (data) {
+			/* we need only the data size */
+			len -= sizeof(*package);
+			goto parse;
+		}
+	}
+
+	/* If it's not available, try from the filesystem */
+	ret = iwl_pnvm_get_from_fs(trans, &data, &len);
+	if (ret) {
+		/*
+		 * Pretend we've loaded it - at least we've tried and
+		 * couldn't load it at all, so there's no point in
+		 * trying again over and over.
+		 */
+		trans->pnvm_loaded = true;
+
+		goto skip_parse;
+	}
+
+parse:
+	iwl_pnvm_parse(trans, data, len);
+
+	kfree(data);
+
+skip_parse:
+	data = NULL;
+	/* now try to get the reduce power table, if not loaded yet */
+	if (!trans->reduce_power_loaded) {
+		data = iwl_uefi_get_reduced_power(trans, &len);
+		if (IS_ERR_OR_NULL(data)) {
+			/*
+			 * Pretend we've loaded it - at least we've tried and
+			 * couldn't load it at all, so there's no point in
+			 * trying again over and over.
+			 */
+			trans->reduce_power_loaded = true;
+
+			goto skip_reduce_power;
+		}
+	}
+
+	ret = iwl_trans_set_reduce_power(trans, data, len);
+	if (ret)
+		IWL_DEBUG_FW(trans,
+			     "Failed to set reduce power table %d\n",
+			     ret);
+	kfree(data);
+
+skip_reduce_power:
 	iwl_init_notification_wait(notif_wait, &pnvm_wait,
 				   ntf_cmds, ARRAY_SIZE(ntf_cmds),
 				   iwl_pnvm_complete_fn, trans);

@@ -9,8 +9,8 @@
  */
 
 #include <linux/libfdt_env.h>
+#include <linux/xrt/metadata.h>
 #include "libfdt.h"
-#include "metadata.h"
 
 #define XRT_MAX_BLOB_SIZE	(4096 * 25)
 #define XRT_MAX_DEPTH 5
