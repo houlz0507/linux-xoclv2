@@ -199,8 +199,8 @@ static struct xrt_dev_endpoints xrt_calib_endpoints[] = {
 };
 
 static const struct xrt_device_id xrt_calib_ids[] = {
-        { XRT_SUBDEV_CALIB },
-        { }
+	{ XRT_SUBDEV_CALIB },
+	{ }
 };
 MODULE_DEVICE_TABLE(xrt, xrt_calib_ids);
 

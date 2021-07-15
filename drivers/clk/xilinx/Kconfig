@@ -23,18 +23,27 @@ config XRT_CLK_WIZ
 	select XRT_CLK_FREQ
 	select XRT_CLK_UCS
 	help
-	  Select this option to enable the Alveo clock controller driver.
+	  Select this option to enable the Alveo clock driver. When FPGA
+	  manager programs Alveo FPGA, it needs to set the clock frequency.
+	  This driver provides the interfaces to configure the fclock
+	  frequency.
 
 config XRT_CLK_FREQ
 	tristate "Driver for Xilinx Alveo clock frequency counter"
 	depends on FPGA_XRT_LIB
 	depends on XRT_CLK_WIZ
 	help
-	  Select this option to enable the Alveo clock frequency counter driver.
+	  Select this option to enable the Alveo clock frequency counter
+	  driver. The Alveo clock frequency counter indicates if the clock
+	  is configured correctly. This driver provides the function to
+	  read the frequency counter.
 
 config XRT_CLK_UCS
 	tristate "Driver for Xilinx Alveo user clock subsystem controller"
 	depends on FPGA_XRT_LIB
 	depends on XRT_CLK_WIZ
 	help
-	  Select this option to enable the Alveo user clock subsystem controller driver.
+	  Select this option to enable the Alveo user clock subsystem (UCS)
+	  controller driver. After configuring the clock frequency, the UCS
+	  controller needs to be enabled. This driver provides the function
+	  to enable UCS.

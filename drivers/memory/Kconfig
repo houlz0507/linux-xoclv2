@@ -230,7 +230,10 @@ config XRT_DDR_CALIB
 	depends on FPGA_XRT_LIB
 	help
 	  Selete this option to enable the Xilinx Alveo DDR calibration
-	  controller.
+	  controller. Before the Alveo FPGA accessing device DDR, it has
+	  to make sure the DDR controller calibration is completed. This
+	  driver provides the function to check if the DDR controller
+	  calibration is completed or timed out.
 
 source "drivers/memory/samsung/Kconfig"
 source "drivers/memory/tegra/Kconfig"
