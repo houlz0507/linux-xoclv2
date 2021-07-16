@@ -12,7 +12,7 @@
 
 #include <linux/types.h>
 #include <linux/device.h>
-#include <linux/xrt/xclbin.h>
+#include <linux/fpga-xrt.h>
 
 #define XCLBIN_VERSION2	"xclbin2"
 #define XCLBIN_HWICAP_BITFILE_BUF_SZ 1024

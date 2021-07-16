@@ -497,7 +497,7 @@ static int clock_init(struct clock *clock)
 
 	err = xrt_md_get_prop(DEV(clock->xdev), pdata->xsp_dtb,
 			      clock->clock_ep_name, NULL, XRT_MD_PROP_CLK_FREQ,
-		(const void **)&freq, NULL);
+			      (const void **)&freq, NULL);
 	if (err) {
 		xrt_info(clock->xdev, "no default freq");
 		return 0;

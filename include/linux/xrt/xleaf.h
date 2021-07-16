@@ -101,7 +101,7 @@ struct xrt_subdev_platdata {
 	 * of variable length.
 	 */
 	bool xsp_dtb_valid;
-	char xsp_dtb[0];
+	char xsp_dtb[0] __aligned(8);
 };
 
 struct subdev_match_arg {

@@ -9,7 +9,7 @@
 #ifndef _XMGMT_MAIN_H_
 #define _XMGMT_MAIN_H_
 
-#include <linux/xrt/xclbin.h>
+#include <linux/fpga-xrt.h>
 #include "xleaf.h"
 
 enum xrt_mgmt_main_leaf_cmd {

@@ -10,7 +10,7 @@
 #define _XRT_CLOCK_H_
 
 #include <linux/xrt/xleaf.h>
-#include <linux/xrt/xclbin.h>
+#include <linux/fpga-xrt.h>
 
 /*
  * CLOCK driver leaf calls.

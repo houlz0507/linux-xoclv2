@@ -14,7 +14,7 @@
 #include <linux/xrt/xclbin-helper.h>
 #include <linux/xrt/metadata.h>
 #include <linux/xrt/xleaf.h>
-#include <linux/xrt/xmgmt-ioctl.h>
+#include <linux/fpga-xrt.h>
 #include <linux/xrt/xleaf/devctl.h>
 #include <linux/xrt/xleaf/icap.h>
 #include <linux/xrt/xleaf/axigate.h>
