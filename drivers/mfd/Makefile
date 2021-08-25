@@ -275,3 +275,5 @@ obj-$(CONFIG_MFD_ATC260X_I2C)	+= atc260x-i2c.o
 
 obj-$(CONFIG_XRT_DEVCTL)	+= xrt-devctl.o
 obj-$(CONFIG_XRT_VSEC)		+= xrt-vsec.o
+obj-$(CONFIG_XRT_PCIE_FIREWALL)	+= xrt-pcie-firewall.o
+obj-$(CONFIG_XRT_MAILBOX)	+= xrt-mailbox.o

@@ -87,6 +87,7 @@ xleaf_devnode_open_excl(struct inode *inode)
 {
 	return __xleaf_devnode_open(inode, true);
 }
+EXPORT_SYMBOL_GPL(xleaf_devnode_open_excl);
 
 struct xrt_device *
 xleaf_devnode_open(struct inode *inode)

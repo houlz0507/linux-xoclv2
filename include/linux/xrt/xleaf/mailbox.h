@@ -1,0 +1,45 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright (C) 2020-2021 Xilinx, Inc.
+ *
+ * Authors:
+ *	Cheng Zhen <maxz@xilinx.com>
+ */
+
+#ifndef _XRT_MAILBOX_H_
+#define _XRT_MAILBOX_H_
+
+#include <linux/xrt/xleaf.h>
+/*
+ * Mailbox IP driver leaf calls.
+ */
+enum xrt_mailbox_leaf_cmd {
+	XRT_MAILBOX_POST = XRT_XLEAF_CUSTOM_BASE, /* See comments in xleaf.h */
+	XRT_MAILBOX_REQUEST,
+	XRT_MAILBOX_LISTEN,
+};
+
+struct xrt_mailbox_post {
+	u64 xmip_req_id; /* 0 means response */
+	bool xmip_sw_ch;
+	void *xmip_data;
+	size_t xmip_data_size;
+};
+
+struct xrt_mailbox_request {
+	bool xmir_sw_ch;
+	u32 xmir_resp_ttl;
+	void *xmir_req;
+	size_t xmir_req_size;
+	void *xmir_resp;
+	size_t xmir_resp_size;
+};
+
+typedef	void (*mailbox_msg_cb_t)(void *arg, void *data, size_t len,
+	u64 msgid, int err, bool sw_ch);
+struct xrt_mailbox_listen {
+	mailbox_msg_cb_t xmil_cb;
+	void *xmil_cb_arg;
+};
+
+#endif	/* _XRT_MAILBOX_H_ */

@@ -2202,5 +2202,25 @@ config XRT_VSEC
 	  This driver provides support for read VSEC information from Alveo device.
 	  Then it pass this information to XRT driver infrastructure.
 
+config XRT_PCIE_FIREWALL
+	tristate "Xilinx Alveo PCIe firewall driver"
+	depends on FPGA_XRT_LIB
+	help
+	  Select this option to enable XRT PCIe firewall driver.
+
+	  Alveo PCIe Firewall IP protects against host access to BARs which are not
+	  available. This driver provides support to block and unblock the BAR access
+	  when it is needed.
+
+config XRT_MAILBOX
+	tristate "Xilinx Alveo PCIe mailbox driver"
+	depends on FPGA_XRT_LIB
+	help
+	  Select this option to enable XRT mailbox driver.
+
+	  Alveo mailbox IPs are implemented for each PCIe physical functions. This
+	  driver provides support to send and receive messages between two PCIe
+	  physical functions through mailbox hardware.
+
 endmenu
 endif
