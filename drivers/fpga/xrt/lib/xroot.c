@@ -408,9 +408,13 @@ static int xroot_root_cb(struct device *dev, void *parg, enum xrt_root_cmd cmd, 
 	}
 
 	default:
-		xroot_err(xr, "unknown IOCTL cmd %d", cmd);
-		rc = -EINVAL;
-		break;
+		if (xr->pf_cb.xpc_default_cb) {
+			rc = xr->pf_cb.xpc_default_cb(xr->dev, cmd, arg);
+		} else {
+			 xroot_err(xr, "unknown IOCTL cmd %d", cmd);
+			rc = -EINVAL;
+			break;
+		}
 	}
 
 	return rc;
@@ -469,6 +473,61 @@ int xroot_add_simple_node(void *root, char *dtb, const char *endpoint)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(xroot_add_simple_node);
+
+int xroot_create_root_metadata(void *root, u64 vsec_off, u32 vsec_bar_idx,
+			       const char *main_endpoint, char **root_dtb)
+{
+	struct xroot *xr = (struct xroot *)root;
+	struct xrt_md_endpoint ep = { 0 };
+	struct device *dev = xr->dev;
+	char *dtb = NULL;
+	__be64 val64;
+	__be32 val32;
+	int ret;
+
+	ret = xrt_md_create(dev, &dtb);
+	if (ret) {
+		xroot_err(xr, "create metadata failed, ret %d", ret);
+		goto failed;
+	}
+
+	ep.ep_name = XRT_MD_NODE_VSEC;
+	ret = xrt_md_add_endpoint(dev, dtb, &ep);
+	if (ret) {
+		xroot_err(xr, "add vsec metadata failed, ret %d", ret);
+		goto failed;
+	}
+
+	val32 = cpu_to_be32(vsec_bar_idx);
+	ret = xrt_md_set_prop(dev, dtb, XRT_MD_NODE_VSEC, NULL, XRT_MD_PROP_BAR_IDX,
+			      &val32, sizeof(val32));
+	if (ret) {
+		xroot_err(xr, "add vsec bar idx failed, ret %d", ret);
+		goto failed;
+	}
+
+	val64 = cpu_to_be64(vsec_off);
+	ret = xrt_md_set_prop(dev, dtb, XRT_MD_NODE_VSEC, NULL, XRT_MD_PROP_OFFSET,
+			      &val64, sizeof(val64));
+	if (ret) {
+		xroot_err(xr, "add vsec offset failed, ret %d", ret);
+		goto failed;
+	}
+
+	ret = xroot_add_simple_node(xr, dtb, main_endpoint);
+	if (ret) {
+		xroot_err(xr, "add user main node failed, ret %d", ret);
+		goto failed;
+	}
+
+	*root_dtb = dtb;
+	return 0;
+
+failed:
+	vfree(dtb);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(xroot_create_root_metadata);
 
 bool xroot_wait_for_bringup(void *root)
 {

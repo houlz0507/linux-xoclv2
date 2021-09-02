@@ -30,6 +30,11 @@ enum xrt_events {
 	XRT_EVENT_POST_HOT_RESET,
 	XRT_EVENT_PRE_GATE_CLOSE,
 	XRT_EVENT_POST_GATE_OPEN,
+	/*
+	 * Events related to peer state
+	 */
+	XRT_EVENT_PEER_ONLINE,
+	XRT_EVENT_PEER_OFFLINE,
 };
 
 struct xrt_event_arg_subdev {

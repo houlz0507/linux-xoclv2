@@ -865,3 +865,17 @@ void xleaf_unregister_hwmon(struct xrt_device *xdev, struct device *hwmon)
 	hm.xpih_hwmon_dev = hwmon;
 	xrt_subdev_root_request(xdev, XRT_ROOT_HWMON, (void *)&hm);
 }
+
+int xleaf_irq_request(struct xrt_device *xdev, const char *name, u32 vec,
+		      irq_handler_t handler, void *arg)
+{
+	struct xrt_root_irq_req req = { 0 };
+
+	req.xpiir_handler = handler;
+	req.xpiir_dev_id = arg;
+	req.xpiir_vec_idx = vec;
+
+	return xrt_subdev_root_request(xdev, XRT_ROOT_REQUEST_IRQ, &req);
+}
+EXPORT_SYMBOL_GPL(xleaf_irq_request);
+

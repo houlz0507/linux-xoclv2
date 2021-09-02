@@ -40,6 +40,7 @@ enum xrt_root_cmd {
 	/* Misc. */
 	XRT_ROOT_HOT_RESET,
 	XRT_ROOT_HWMON,
+	XRT_ROOT_REQUEST_IRQ,
 };
 
 struct xrt_root_get_leaf {
@@ -87,6 +88,13 @@ struct xrt_root_hwmon {
 	struct device *xpih_hwmon_dev;
 };
 
+struct xrt_root_irq_req {
+	u32 xpiir_vec_idx;
+	void *xpiir_handler;
+	void *xpiir_dev_id;
+	char *xpiir_name;
+};
+
 /*
  * Callback for leaf to make a root request. Arguments are: parent device, parent cookie, req,
  * and arg.
@@ -102,6 +110,7 @@ struct xroot_physical_function_callback {
 	void (*xpc_get_id)(struct device *dev, struct xrt_root_get_id *rid);
 	int (*xpc_get_resource)(struct device *dev, struct xrt_root_get_res *res);
 	void (*xpc_hot_reset)(struct device *dev);
+	int (*xpc_default_cb)(struct device *dev, enum xrt_root_cmd cmd, void *arg);
 };
 
 int xroot_probe(struct device *dev, struct xroot_physical_function_callback *cb, void **root);
@@ -110,5 +119,7 @@ bool xroot_wait_for_bringup(void *root);
 int xroot_create_group(void *xr, char *dtb);
 int xroot_add_simple_node(void *root, char *dtb, const char *endpoint);
 void xroot_broadcast(void *root, enum xrt_events evt);
+int xroot_create_root_metadata(void *root, u64 vsec_off, u32 vsec_bar_idx,
+			       const char *main_endpoint, char **root_dtb);
 
 #endif	/* _XRT_ROOT_H_ */

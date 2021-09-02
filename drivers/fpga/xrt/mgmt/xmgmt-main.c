@@ -19,6 +19,9 @@
 #include <linux/xrt/xleaf/icap.h>
 #include <linux/xrt/xleaf/axigate.h>
 #include <linux/xrt/xmgmt-main.h>
+#include <linux/xrt/xleaf/icap.h>
+#include <linux/xrt/xleaf/axigate.h>
+#include <linux/xrt/xleaf/pcie-firewall.h>
 #include "xrt-mgr.h"
 #include "xmgmt.h"
 
@@ -37,6 +40,7 @@ struct xmgmt_main {
 	struct axlf *firmware_ulp;
 	u32 flags;
 	struct fpga_manager *fmgr;
+	void *mailbox_hdl;
 	struct mutex lock; /* busy lock */
 	uuid_t *blp_interface_uuids;
 	u32 blp_interface_uuid_num;
@@ -336,6 +340,63 @@ done:
 	return rc;
 }
 
+static int xmgmt_unblock_endpoints(struct xrt_device *xdev, char *dtb)
+{
+	struct xrt_pcie_firewall_unblock arg = { 0 };
+	char *epname = NULL, *regmap = NULL;
+	struct xrt_device *pcie_firewall;
+	struct device *dev = DEV(xdev);
+	__be32 *pf_num, *bar_index;
+	int rc = 0;
+
+	pcie_firewall = xleaf_get_leaf_by_id(xdev, XRT_SUBDEV_PCIE_FIREWALL,
+					     XRT_INVALID_DEVICE_INST);
+	if (!pcie_firewall)
+		return -ENODEV;
+
+	for (xrt_md_get_next_endpoint(dev, dtb, NULL, NULL, &epname, &regmap);
+	     epname;
+	     xrt_md_get_next_endpoint(dev, dtb, epname, regmap, &epname, &regmap)) {
+		rc = xrt_md_get_prop(dev, dtb, epname, regmap, XRT_MD_PROP_PF_NUM,
+				     (const void **)&pf_num, NULL);
+		if (rc)
+			continue;
+		rc = xrt_md_get_prop(dev, dtb, epname, regmap, XRT_MD_PROP_BAR_IDX,
+				     (const void **)&bar_index, NULL);
+		if (rc)
+			bar_index = 0;
+
+		arg.pf_index = be32_to_cpu(*pf_num);
+		arg.bar_index = be32_to_cpu(*bar_index);
+		rc = xleaf_call(pcie_firewall, XRT_PFW_UNBLOCK, &arg);
+		if (rc) {
+			/*
+			 * It should not fail unless hardware issue. And pci reset
+			 * will set pcie firewall to default state. Thus it does not
+			 * have to reset pcie firewall on failure case.
+			 */
+			xrt_err(xdev, "failed to unblock endpoint %s", epname);
+			break;
+		}
+	}
+	xleaf_put_leaf(xdev, pcie_firewall);
+
+	return rc;
+}
+
+static void xmgmt_unblock_all(struct xrt_device *xdev)
+{
+	char *dtb;
+	int type;
+
+	for (type = XMGMT_BLP; type <= XMGMT_ULP; type++) {
+		dtb = xmgmt_get_dtb(xdev, type);
+		if (!dtb)
+			break;
+		xmgmt_unblock_endpoints(xdev, dtb);
+	}
+}
+
 static int xmgmt_create_blp(struct xmgmt_main *xmm)
 {
 	const struct axlf *provider = xmgmt_get_axlf_firmware(xmm, XMGMT_BLP);
@@ -405,6 +466,12 @@ static void xmgmt_main_event_cb(struct xrt_device *xdev, void *arg)
 	id = evt->xe_subdev.xevt_subdev_id;
 	switch (e) {
 	case XRT_EVENT_POST_CREATION: {
+		/* mgmt driver finishes attaching, notify user pf. */
+		if (id == XRT_ROOT) {
+			xmgmt_peer_notify_state(xmm->mailbox_hdl, true);
+			break;
+		}
+
 		if (id == XRT_SUBDEV_DEVCTL && !(xmm->flags & XMGMT_FLAG_DEVCTL_READY)) {
 			leaf = xleaf_get_leaf_by_epname(xdev, XRT_MD_NODE_BLP_ROM);
 			if (leaf) {
@@ -422,6 +489,12 @@ static void xmgmt_main_event_cb(struct xrt_device *xdev, void *arg)
 		break;
 	}
 	case XRT_EVENT_PRE_REMOVAL:
+		/* mgmt driver is about to detach, notify user pf. */
+		if (id == XRT_ROOT)
+			xmgmt_peer_notify_state(xmm->mailbox_hdl, false);
+		break;
+	case XRT_EVENT_POST_GATE_OPEN:
+		xmgmt_unblock_all(xdev);
 		break;
 	default:
 		xrt_dbg(xdev, "ignored event %d", e);
@@ -445,6 +518,7 @@ static int xmgmt_main_probe(struct xrt_device *xdev)
 		return PTR_ERR(xmm->fmgr);
 
 	xrt_set_drvdata(xdev, xmm);
+	xmm->mailbox_hdl = xmgmt_mailbox_probe(xdev);
 	mutex_init(&xmm->lock);
 
 	/* Ready to handle req thru sysfs nodes. */
@@ -467,6 +541,7 @@ static void xmgmt_main_remove(struct xrt_device *xdev)
 	vfree(xmm->firmware_ulp);
 	xmgmt_region_cleanup_all(xdev);
 	xmgmt_fmgr_remove(xmm->fmgr);
+	xmgmt_mailbox_remove(xmm->mailbox_hdl);
 	sysfs_remove_group(&DEV(xdev)->kobj, &xmgmt_main_attrgroup);
 }
 
@@ -478,6 +553,7 @@ xmgmt_mainleaf_call(struct xrt_device *xdev, u32 cmd, void *arg)
 
 	switch (cmd) {
 	case XRT_XLEAF_EVENT:
+		xmgmt_mailbox_event_cb(xdev, arg);
 		xmgmt_main_event_cb(xdev, arg);
 		break;
 	case XRT_MGMT_MAIN_GET_AXLF_SECTION: {
@@ -557,6 +633,33 @@ static int xmgmt_bitstream_axlf_fpga_mgr(struct xmgmt_main *xmm, void *axlf, siz
 	return ret;
 }
 
+int bitstream_axlf_mailbox(struct xrt_device *xdev, const void *axlf)
+{
+	struct xmgmt_main *xmm = xrt_get_drvdata(xdev);
+	void *copy_buffer = NULL;
+	size_t copy_buffer_size = 0;
+	const struct axlf *xclbin_obj = axlf;
+	int ret = 0;
+
+	if (memcmp(xclbin_obj->magic, XCLBIN_VERSION2, sizeof(XCLBIN_VERSION2)))
+		return -EINVAL;
+
+	copy_buffer_size = xclbin_obj->header.length;
+	if (copy_buffer_size > XCLBIN_MAX_SZ_1G)
+		return -EINVAL;
+	copy_buffer = vmalloc(copy_buffer_size);
+	if (!copy_buffer)
+		return -ENOMEM;
+	memcpy(copy_buffer, axlf, copy_buffer_size);
+
+	mutex_lock(&xmm->lock);
+	ret = xmgmt_bitstream_axlf_fpga_mgr(xmm, copy_buffer, copy_buffer_size);
+	mutex_unlock(&xmm->lock);
+	if (ret)
+		vfree(copy_buffer);
+	return ret;
+}
+
 static int bitstream_axlf_ioctl(struct xmgmt_main *xmm, const void __user *arg)
 {
 	struct xmgmt_ioc_bitstream_axlf ioc_obj = { 0 };
@@ -618,6 +721,13 @@ static long xmgmt_main_ioctl(struct file *filp, unsigned int cmd, unsigned long 
 
 	mutex_unlock(&xmm->lock);
 	return result;
+}
+
+void *xmgmt_xdev2mailbox(struct xrt_device *xdev)
+{
+	struct xmgmt_main *xmm = xrt_get_drvdata(xdev);
+
+	return xmm->mailbox_hdl;
 }
 
 static struct xrt_dev_endpoints xrt_mgmt_main_endpoints[] = {

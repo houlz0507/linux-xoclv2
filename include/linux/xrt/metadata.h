@@ -108,6 +108,7 @@
 #define XRT_MD_NODE_GOLDEN_VER "drv_ep_golden_ver_00"
 #define XRT_MD_NODE_MAILBOX_VSEC "drv_ep_mailbox_vsec_00"
 #define XRT_MD_NODE_MGMT_MAIN "drv_ep_mgmt_main_00"
+#define XRT_MD_NODE_USER_MAIN "drv_ep_user_main_00"
 #define XRT_MD_NODE_PLAT_INFO "drv_ep_platform_info_mgmt_00"
 #define XRT_MD_NODE_PARTITION_INFO_BLP "partition_info_0"
 #define XRT_MD_NODE_PARTITION_INFO_PLP "partition_info_1"

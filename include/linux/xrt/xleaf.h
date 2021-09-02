@@ -11,6 +11,7 @@
 #define _XRT_XLEAF_H_
 
 #include <linux/mod_devicetable.h>
+#include <linux/interrupt.h>
 #include "xdevice.h"
 #include "subdev_id.h"
 #include "events.h"
@@ -167,6 +168,8 @@ struct device *xleaf_register_hwmon(struct xrt_device *xdev, const char *name, v
 				    const struct attribute_group **grps);
 void xleaf_unregister_hwmon(struct xrt_device *xdev, struct device *hwmon);
 int xleaf_wait_for_group_bringup(struct xrt_device *xdev);
+int xleaf_irq_request(struct xrt_device *xdev, const char *name, u32 vec,
+		      irq_handler_t handler, void *arg);
 
 /*
  * Character device helper APIs for use by leaf drivers

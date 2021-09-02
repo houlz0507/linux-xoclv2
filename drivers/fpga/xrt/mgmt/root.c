@@ -18,7 +18,6 @@
 #include "xmgmt.h"
 
 #define XMGMT_MODULE_NAME	"xrt-mgmt"
-#define XMGMT_DRIVER_VERSION	"4.0.0"
 
 #define XMGMT_PDEV(xm)		((xm)->pdev)
 #define XMGMT_DEV(xm)		(&(XMGMT_PDEV(xm)->dev))
@@ -413,7 +412,6 @@ module_init(xmgmt_init);
 module_exit(xmgmt_exit);
 
 MODULE_DEVICE_TABLE(pci, xmgmt_pci_ids);
-MODULE_VERSION(XMGMT_DRIVER_VERSION);
 MODULE_AUTHOR("XRT Team <runtime@xilinx.com>");
 MODULE_DESCRIPTION("Xilinx Alveo management function driver");
 MODULE_LICENSE("GPL v2");

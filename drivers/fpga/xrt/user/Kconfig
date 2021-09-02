@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Xilinx XRT FPGA device configuration
+#
+
+config FPGA_XRT_USER
+	tristate "Xilinx Alveo User Driver"
+	depends on FPGA_XRT_LIB
+	select FPGA_XRT_METADATA
+	help
+	  Select this option to enable XRT PCIe driver for Xilinx Alveo FPGA user
+	  function. This driver provides interfaces for userspace application to access
+	  Alveo FPGA device.

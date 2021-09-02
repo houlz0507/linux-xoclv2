@@ -175,7 +175,7 @@
 #include <linux/ioctl.h>
 #include <linux/delay.h>
 #include <linux/crc32c.h>
-#include <linux/fpga-xrt.h>
+#include <linux/fpga-xrt-mailbox.h>
 #include <linux/xrt/metadata.h>
 #include <linux/xrt/xleaf.h>
 #include <linux/xrt/xleaf/mailbox.h>

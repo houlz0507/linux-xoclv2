@@ -53,3 +53,4 @@ obj-$(CONFIG_FPGA_DFL_PCI)		+= dfl-pci.o
 obj-$(CONFIG_FPGA_XRT_METADATA)		+= xrt/metadata/
 obj-$(CONFIG_FPGA_XRT_LIB)		+= xrt/lib/
 obj-$(CONFIG_FPGA_XRT_XMGMT)		+= xrt/mgmt/
+obj-$(CONFIG_FPGA_XRT_USER)		+= xrt/user/
