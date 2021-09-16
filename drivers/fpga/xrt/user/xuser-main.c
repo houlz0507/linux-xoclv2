@@ -13,6 +13,7 @@
 #include <linux/xrt/xdevice.h>
 #include <linux/xrt/xleaf.h>
 #include <linux/slab.h>
+#include <linux/xrt/xleaf/xdma.h>
 #include "xuser.h"
 
 #define XUSER_MAIN "xuser_main"
@@ -209,6 +210,61 @@ void *xuser_xdev2mailbox(struct xrt_device *xdev)
 	return xum->mailbox_hdl;
 }
 
+static int xuser_main_open(struct inode *inode, struct file *file)
+{
+#if 0
+	struct xrt_device *xdev = xleaf_devnode_open(inode);
+	struct xrt_device *xdma;
+	int ret;
+
+	xdma = xleaf_get_leaf_by_id(xdev, XRT_SUBDEV_XDMA, XRT_INVALID_DEVICE_INST);
+	if (!xdma)
+		return -ENODEV;
+
+	ret = xleaf_call(xdma, XRT_XDMA_START, NULL);
+	if (ret && ret != -ENODEV) {
+		xrt_err(xdev, "failed to start xdma, ret %d", ret);
+		return ret;
+	}
+	if (!ret)
+		xleaf_put_leaf(xdev, xdma);
+	file->private_data = xrt_get_drvdata(xdev);
+#endif
+
+	return 0;
+}
+
+static int xuser_main_close(struct inode *inode, struct file *file)
+{
+#if 0
+	struct xuser_main *xum = file->private_data;
+	struct xrt_device *xdev = xum->xdev;
+	struct xrt_device *xdma;
+	int ret;
+
+	xleaf_devnode_close(inode);
+
+	xdma = xleaf_get_leaf_by_id(xdev, XRT_SUBDEV_XDMA, XRT_INVALID_DEVICE_INST);
+	if (!xdma)
+		return -ENODEV;
+
+	ret = xleaf_call(xdma, XRT_XDMA_STOP, NULL);
+	if (ret && ret != -ENODEV) {
+		xrt_err(xdev, "failed to stop xdma, ret %d", ret);
+		return ret;
+	}
+	if (!ret)
+		xleaf_put_leaf(xdev, xdma);
+#endif
+
+	return 0;
+}
+
+static long xuser_main_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	return 0;
+}
+
 static struct xrt_dev_endpoints xrt_user_main_endpoints[] = {
 	{
 		.xse_names = (struct xrt_dev_ep_names[]){
@@ -223,6 +279,15 @@ static struct xrt_dev_endpoints xrt_user_main_endpoints[] = {
 static struct xrt_driver xuser_main_driver = {
 	.driver = {
 		.name = XUSER_MAIN,
+	},
+	.file_ops = {
+		.xsf_ops = {
+			.owner = THIS_MODULE,
+			.open = xuser_main_open,
+			.release = xuser_main_close,
+			.unlocked_ioctl = xuser_main_ioctl,
+		},
+		.xsf_dev_name = "xuser",
 	},
 	.subdev_id = XRT_SUBDEV_USER_MAIN,
 	.endpoints = xrt_user_main_endpoints,

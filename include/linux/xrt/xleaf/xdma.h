@@ -10,8 +10,16 @@
 #define _XRT_XDMA_H_
 
 #include <linux/dma-direction.h>
+#include <linux/scatterlist.h>
 #include <linux/xrt/xleaf/xdma.h>
 #include <linux/xrt/metadata.h>
+
+/* maximum number of channel */
+#define XRT_XDMA_MAX_CHANNEL_NUM	32
+
+/* channel name */
+#define XRT_XDMA_CHANNEL_H2C	"xrt_xdma_chan_h2c"
+#define XRT_XDMA_CHANNEL_C2H	"xrt_xdma_chan_c2h"
 
 /*
  * XDMA driver leaf calls.

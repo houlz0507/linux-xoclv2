@@ -141,8 +141,10 @@ static int xrt_axigate_close(struct xrt_device *xdev)
 		xrt_err(xdev, "read gate failed %d", ret);
 		goto failed;
 	}
-	if (status) {		/* gate is opened */
+	if (!gate->gate_closed)
 		xleaf_broadcast_event(xdev, XRT_EVENT_PRE_GATE_CLOSE, false);
+
+	if (status) {		/* gate is opened */
 		ret = close_gate(gate);
 		if (ret)
 			goto failed;
@@ -175,6 +177,9 @@ static int xrt_axigate_open(struct xrt_device *xdev)
 		ret = open_gate(gate);
 		if (ret)
 			goto failed;
+	}
+
+	if (gate->gate_closed) {
 		xleaf_broadcast_event(xdev, XRT_EVENT_POST_GATE_OPEN, true);
 		/* xrt_axigate_open() could be called in event cb, thus
 		 * we can not wait for the completes
@@ -260,6 +265,7 @@ static int xrt_axigate_probe(struct xrt_device *xdev)
 	gate = devm_kzalloc(&xdev->dev, sizeof(*gate), GFP_KERNEL);
 	if (!gate)
 		return -ENOMEM;
+	gate->gate_closed = true;
 
 	gate->xdev = xdev;
 	xrt_set_drvdata(xdev, gate);

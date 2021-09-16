@@ -43,6 +43,7 @@ static const struct pci_device_id xuser_pci_ids[] = {
 struct xuser {
 	struct pci_dev *pdev;
 	void *root;
+	int nvec;
 
 	bool ready;
 };
@@ -50,7 +51,7 @@ struct xuser {
 static int xuser_config_pci(struct xuser *xu)
 {
 	struct pci_dev *pdev = XUSER_PDEV(xu);
-	int rc, nvec;
+	int rc;
 
 	/* enable relaxed ordering */
 	pcie_capability_set_word(pdev, PCI_EXP_DEVCTL, PCI_EXP_DEVCTL_RELAX_EN);
@@ -73,18 +74,6 @@ static int xuser_config_pci(struct xuser *xu)
 		}
 	}
 
-	rc = pci_set_dma_mask(pdev, DMA_BIT_MASK(64));
-	if (rc) {
-		xuser_err(xu, "failed to set dma mask: %d", rc);
-		return rc;
-	}
-
-	rc = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(64));
-	if (rc) {
-		xuser_err(xu, "failed to set consistent_dma_mask: %d", rc);
-		return rc;
-	}
-
 	pci_set_master(pdev);
 	rc = pci_enable_device(pdev);
 	if (rc) {
@@ -92,14 +81,16 @@ static int xuser_config_pci(struct xuser *xu)
 		return rc;
 	}
 
-	nvec = pci_msix_vec_count(pdev);
-	if (nvec <= 0) {
-		xuser_err(xu, "msix is not supported: %d", nvec);
+	xu->nvec = pci_msix_vec_count(pdev);
+	if (xu->nvec <= 0) {
+		xuser_err(xu, "msix is not supported: %d", xu->nvec);
 		return -EINVAL;
 	}
-	rc = pci_alloc_irq_vectors(pdev, nvec, nvec, PCI_IRQ_MSIX);
-	if (rc < 0)
+	rc = pci_alloc_irq_vectors(pdev, xu->nvec, xu->nvec, PCI_IRQ_MSIX);
+	if (rc < 0) {
+		xu->nvec = 0;
 		return rc;
+	}
 
 	return 0;
 }
@@ -177,7 +168,7 @@ static int xuser_root_get_resource(struct device *dev, struct xrt_root_get_res *
 	return 0;
 }
 
-static int xuser_root_default(struct device *dev, enum xrt_root_cmd cmd, void *arg)
+static int xuser_root_request_irq(struct device *dev, struct xrt_root_irq_req *req)
 {
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct xuser *xu;
@@ -185,25 +176,13 @@ static int xuser_root_default(struct device *dev, enum xrt_root_cmd cmd, void *a
 
 	xu = pci_get_drvdata(pdev);
 
-	switch (cmd) {
-	case XRT_ROOT_REQUEST_IRQ: {
-		struct xrt_root_irq_req *req;
-
-		req = (struct xrt_root_irq_req *)arg;
-		if (req->xpiir_handler) {
-			ret = pci_request_irq(pdev, req->xpiir_vec_idx, req->xpiir_handler, NULL,
-					      req->xpiir_dev_id, req->xpiir_name);
-			if (ret)
-				xuser_err(xu, "failed to alloc vector: %d", ret);
-		} else {
-			pci_free_irq(pdev, req->xpiir_vec_idx, req->xpiir_dev_id);
-		}
-		break;
-	}
-	default:
-		xuser_err(xu, "Invalid command %d", cmd);
-		ret = -EINVAL;
-		break;
+	if (req->xpiir_handler) {
+		ret = pci_request_irq(pdev, req->xpiir_vec_idx, req->xpiir_handler, NULL,
+				      req->xpiir_dev_id, req->xpiir_name);
+		if (ret)
+			xuser_err(xu, "failed to alloc vector: %d", ret);
+	} else {
+		pci_free_irq(pdev, req->xpiir_vec_idx, req->xpiir_dev_id);
 	}
 
 	return ret;
@@ -212,7 +191,7 @@ static int xuser_root_default(struct device *dev, enum xrt_root_cmd cmd, void *a
 static struct xroot_physical_function_callback xuser_xroot_pf_cb = {
 	.xpc_get_id = xuser_root_get_id,
 	.xpc_get_resource = xuser_root_get_resource,
-	.xpc_default_cb = xuser_root_default,
+	.xpc_request_irq = xuser_root_request_irq,
 };
 
 static int xuser_probe(struct pci_dev *pdev, const struct pci_device_id *id)
@@ -274,7 +253,8 @@ static void xuser_remove(struct pci_dev *pdev)
 	xroot_broadcast(xu->root, XRT_EVENT_PRE_REMOVAL);
 	sysfs_remove_group(&pdev->dev.kobj, &xuser_root_attr_group);
 	xroot_remove(xu->root);
-	pci_free_irq_vectors(pdev);
+	if (xu->nvec > 0)
+		pci_free_irq_vectors(pdev);
 	xuser_info(xu, "%s cleaned up successfully", XUSER_MODULE_NAME);
 }
 

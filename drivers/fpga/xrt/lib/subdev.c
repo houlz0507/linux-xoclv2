@@ -866,11 +866,12 @@ void xleaf_unregister_hwmon(struct xrt_device *xdev, struct device *hwmon)
 	xrt_subdev_root_request(xdev, XRT_ROOT_HWMON, (void *)&hm);
 }
 
-int xleaf_irq_request(struct xrt_device *xdev, const char *name, u32 vec,
+int xleaf_irq_request(struct xrt_device *xdev, char *name, u32 vec,
 		      irq_handler_t handler, void *arg)
 {
 	struct xrt_root_irq_req req = { 0 };
 
+	req.xpiir_name = name;
 	req.xpiir_handler = handler;
 	req.xpiir_dev_id = arg;
 	req.xpiir_vec_idx = vec;
@@ -879,3 +880,15 @@ int xleaf_irq_request(struct xrt_device *xdev, const char *name, u32 vec,
 }
 EXPORT_SYMBOL_GPL(xleaf_irq_request);
 
+struct device *xleaf_get_root_dev(struct xrt_device *xdev)
+{
+	struct xrt_root_get_dev req = { 0 };
+	int ret;
+
+	ret = xrt_subdev_root_request(xdev, XRT_ROOT_GET_DEV, &req);
+	if (ret)
+		return NULL;
+
+	return req.dev;
+}
+EXPORT_SYMBOL_GPL(xleaf_get_root_dev);

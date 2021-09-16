@@ -406,15 +406,25 @@ static int xroot_root_cb(struct device *dev, void *parg, enum xrt_root_cmd cmd, 
 		}
 		break;
 	}
-
-	default:
-		if (xr->pf_cb.xpc_default_cb) {
-			rc = xr->pf_cb.xpc_default_cb(xr->dev, cmd, arg);
+	case XRT_ROOT_REQUEST_IRQ: {
+		if (xr->pf_cb.xpc_request_irq) {
+			rc = xr->pf_cb.xpc_request_irq(xr->dev, arg);
 		} else {
-			 xroot_err(xr, "unknown IOCTL cmd %d", cmd);
-			rc = -EINVAL;
-			break;
+			xroot_err(xr, "request irq is not supported");
+			rc = -EOPNOTSUPP;
 		}
+		break;
+	}
+	case XRT_ROOT_GET_DEV: {
+		struct xrt_root_get_dev *req = (struct xrt_root_get_dev *)arg;
+
+		req->dev = xr->dev;
+		break;
+	}
+	default:
+		xroot_err(xr, "unknown root cmd %d", cmd);
+		rc = -EINVAL;
+		break;
 	}
 
 	return rc;

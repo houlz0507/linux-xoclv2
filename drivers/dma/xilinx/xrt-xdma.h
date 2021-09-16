@@ -9,8 +9,6 @@
 #ifndef _XRT_XDMA_IMPL_H_
 #define _XRT_XDMA_IMPL_H_
 
-/* maximum number of channel */
-#define XDMA_MAX_CHANNEL_NUM		32
 #define XDMA_REQUEST_MAX_WAIT		10000	/* ms */
 
 #define XDMA_SUBSYSTEM_ID		0x1fc
@@ -104,6 +102,8 @@ enum {
 #define XDMA_IRQ_CHANNEL_ENABLE_W1C	(XDMA_IRQ_BLOCK_BASE + 0x18)
 #define XDMA_IRQ_USER_VEC		(XDMA_IRQ_BLOCK_BASE + 0x80)
 #define XDMA_IRQ_CHANNEL_VEC		(XDMA_IRQ_BLOCK_BASE + 0xa0)
+
+#define XDMA_IRQ_VEC_SHIFT		8
 
 /*
  * Descriptor for a single contiguous memory block transfer.
