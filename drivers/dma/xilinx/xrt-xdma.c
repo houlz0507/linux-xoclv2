@@ -34,6 +34,12 @@ static const struct regmap_config xdma_regmap_config = {
 	.max_register = XDMA_MAX_REGISTER_RANGE,
 };
 
+struct xdma_tx_desc {
+	struct dma_async_tx_descriptor	txd;
+	struct scatterlist		*sg;
+	u32				sg_len;
+};
+
 struct xdma_channel {
 	struct dma_chan		chan;
 	struct xrt_device	*xdev;
@@ -48,6 +54,8 @@ struct xdma_channel {
 	struct completion	req_compl;
 	enum dma_status		status;
 	spinlock_t		chan_lock;	/* lock for channel data */
+	phys_addr_t		endpoint_addr;
+	struct xdma_tx_desc	desc;
 };
 
 struct xdma_chan_info {
@@ -88,6 +96,50 @@ enum dma_status xdma_tx_status(struct dma_chan *chan, dma_cookie_t cookie,
 
 static void xdma_issue_pending(struct dma_chan *dma_chan)
 {
+}
+
+static int xdma_slave_config(struct dma_chan *chan, struct dma_slave_config *config)
+{
+	struct xdma_channel *channel = to_xdma_channel(chan);
+	struct xrt_xdma *xdma;
+
+	xdma = xrt_get_drvdata(channel->xdev);
+	if (channel->type == XDMA_TARGET_H2C_CHANNEL) {
+		if (config->direction != DMA_MEM_TO_DEV) {
+			xrt_err(xdma->xdev, "direction does not match");
+			return -EINVAL;
+		}
+		channel->endpoint_addr = config->dst_addr;
+	} else {
+		if (config->direction != DMA_DEV_TO_MEM) {
+			xrt_err(xdma->xdev, "direction does not match");
+			return -EINVAL;
+		}
+		channel->endpoint_addr = config->src_addr;
+	}
+
+	return 0;
+}
+
+static struct dma_async_tx_descriptor *
+xdma_prep_slave_sg(struct dma_chan * chan, struct scatterlist *sgl,
+		   unsigned int sg_len, enum dma_transfer_direction dir,
+		   unsigned long flags, void *context)
+{
+	struct xdma_channel *channel = to_xdma_channel(chan);
+	struct xrt_xdma *xdma;
+
+	xdma = xrt_get_drvdata(channel->xdev);
+	if (!is_slave_direction(direction)) {
+		xrt_err(xdma->xdev, "invalid dma direction");
+		return NULL;
+	}
+
+	channel->desc.sg = sgl;
+	channel->desc.sg_len = sg_len;
+	channel->desc.txd.flags = flags;
+
+	return &channel->desc.txd;
 }
 
 static void xdma_free_chan_resources(struct dma_chan *chan)
@@ -288,8 +340,8 @@ static int xdma_init_channels(struct xrt_xdma *xdma)
 		}
 
 		channel->chan.device = &xdma->dma_dev;
-		dma_cookie_init(&channel->chan);
 		init_completion(&channel->req_compl);
+		dma_async_tx_descriptor_init(&channel->desc.txd, &channel->chan);
 		if (!dma_get_slave_channel(&channel->chan)) {
 			xrt_err(xdma->xdev, "failed to get slave channel");
 			ret = -EINVAL;
@@ -307,11 +359,6 @@ static int xdma_init_channels(struct xrt_xdma *xdma)
 failed:
 	xdma_cleanup_channels(xdma);
 	return ret;
-}
-
-static int xdma_request_submit(struct xrt_xdma *xdma, struct xrt_xdma_request *req)
-{
-	return 0;
 }
 
 static void xdma_event_cb(struct xrt_device *xdev, void *arg)
@@ -341,10 +388,47 @@ static void xdma_event_cb(struct xrt_device *xdev, void *arg)
 	}
 }
 
+static void xdma_acquire_channel(struct xrt_xdma *xdma, struct xrt_xdma_channel_req *req)
+{
+	struct xdma_chan_info *chan_info;
+	int channel_index;
+
+	if (req->direction == DMA_MEM_TO_DEV)
+		chan_info = &xdma->h2c;
+	else
+		chan_info = &xdma->c2h;
+
+	if (down_killable(&chan_info->channel_sem)) {
+		req->chan = NULL;
+		return;
+	}
+
+	for (channel_index = 0; channel_index < chan_info->channel_num; channel_index++) {
+		if (test_and_clear_bit(channel_index, &chan_info->channel_bitmap)) {
+			req->chan = &xdma->channels[channel_index + chan_info->start_index];
+			return;
+		}
+	}
+}
+
+static void xdma_release_channel(struct xrt_xdma *xdma, struct xrt_xdma_channel_req *req)
+{
+	struct xdma_channel *channel = to_xdma_channel(chan);
+	struct xrt_xdma *xdma;
+
+	xdma = xrt_get_drvdata(channel->xdev);
+	if (channel->type == XDMA_TARGET_H2C_CHANNEL)
+		chan_info = &xdma->h2c;
+	else
+		chan_info = &xdma->c2h;
+
+	set_bit(channel->chan_id, &chan_info->channel_bitmap);
+	up(&chan_info->channel_sem);
+}
+
 static int xrt_xdma_leaf_call(struct xrt_device *xdev, u32 cmd, void *arg)
 {
 	struct xrt_xdma *xdma;
-	int ret = 0;
 
 	xdma = xrt_get_drvdata(xdev);
 
@@ -353,15 +437,18 @@ static int xrt_xdma_leaf_call(struct xrt_device *xdev, u32 cmd, void *arg)
 		/* Does not handle any event. */
 		xdma_event_cb(xdev, arg);
 		break;
-	case XRT_XDMA_REQUEST:
-		ret = xdma_request_submit(xdma, arg);
+	case XRT_XDMA_GET_CHANNEL:
+		xdma_acquire_channel(xdma, arg);
+		break;
+	case XRT_XDMA_PUT_CHANNEL:
+		xdma_release_channel(xdma, arg);
 		break;
 	default:
 		xrt_err(xdev, "unsupported cmd %d", cmd);
 		return -EINVAL;
 	}
 
-	return ret;
+	return 0;
 }
 
 static int xrt_xdma_probe(struct xrt_device *xdev)

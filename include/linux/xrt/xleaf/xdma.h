@@ -9,8 +9,7 @@
 #ifndef _XRT_XDMA_H_
 #define _XRT_XDMA_H_
 
-#include <linux/dma-direction.h>
-#include <linux/scatterlist.h>
+#include <linux/dmaengine.h>
 #include <linux/xrt/xleaf/xdma.h>
 #include <linux/xrt/metadata.h>
 
@@ -25,14 +24,13 @@
  * XDMA driver leaf calls.
  */
 enum xrt_xdma_leaf_cmd {
-	XRT_XDMA_REQUEST = XRT_XLEAF_CUSTOM_BASE, /* See comments in xleaf.h */
+	XRT_XDMA_GET_CHANNEL = XRT_XLEAF_CUSTOM_BASE, /* See comments in xleaf.h */
+	XRT_XDMA_PUT_CHANNEL,
 };
 
-struct xrt_xdma_request {
-	u32 direction;
-	bool dma_mapped;
-	struct sg_table sgt;
-	u64 endpoint_addr;
+struct xrt_xdma_channel_req {
+	enum dma_transfer_direction direction;
+	struct dma_chan *chan;
 };
 
 #endif	/* _XRT_XDMA_H_ */
