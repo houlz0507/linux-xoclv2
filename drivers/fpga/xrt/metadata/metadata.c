@@ -89,10 +89,10 @@ static inline int xrt_md_get_node(struct device *dev, const char *blob,
 					  offset);
 		if (ret) {
 			if (compat) {
-				dev_err(dev, "cannot get node %s compat %s, ret %d",
+				dev_dbg(dev, "cannot get node %s compat %s, ret %d",
 					name, compat, ret);
 			} else {
-				dev_err(dev, "cannot get node %s, ret %d", name, ret);
+				dev_dbg(dev, "cannot get node %s, ret %d", name, ret);
 			}
 			return -EINVAL;
 		}

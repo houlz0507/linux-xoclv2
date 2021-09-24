@@ -344,6 +344,7 @@ static void (*leaf_init_fini_cbs[])(bool) = {
 	group_leaf_init_fini,
 	axigate_leaf_init_fini,
 	icap_leaf_init_fini,
+	xdma_leaf_init_fini,
 };
 
 static __init int xrt_lib_init(void)

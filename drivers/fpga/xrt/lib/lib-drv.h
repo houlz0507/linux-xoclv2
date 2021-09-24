@@ -32,12 +32,8 @@ void name##_leaf_init_fini(bool init)					\
 
 /* Module's init/fini routines for leaf driver in xrt-lib module */
 void group_leaf_init_fini(bool init);
-void vsec_leaf_init_fini(bool init);
 void axigate_leaf_init_fini(bool init);
 void icap_leaf_init_fini(bool init);
-void calib_leaf_init_fini(bool init);
-void clkfreq_leaf_init_fini(bool init);
-void clock_leaf_init_fini(bool init);
-void ucs_leaf_init_fini(bool init);
+void xdma_leaf_init_fini(bool init);
 
 #endif	/* _LIB_DRV_H_ */

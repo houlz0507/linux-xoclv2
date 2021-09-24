@@ -711,15 +711,6 @@ config XILINX_ZYNQMP_DPDMA
 	  driver provides the dmaengine required by the DisplayPort subsystem
 	  display driver.
 
-config XILINX_XRT_XDMA
-	tristate "Xilinx XRT XDMA Engine"
-	depends on FPGA_XRT_LIB
-	help
-	  Enable support for Xilinx Alveo DMA/Bridge Subsystem for PCI Express.
-	  The driver provides the DMA functions for other XRT leaf drivers. The
-	  DMA functions are used to move the data between host memory and device
-	  memory.
-
 # driver files
 source "drivers/dma/bestcomm/Kconfig"
 

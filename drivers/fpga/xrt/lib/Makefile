@@ -18,7 +18,8 @@ xrt-lib-objs :=			\
 	cdev.o			\
 	group.o			\
 	xleaf/axigate.o		\
-	xleaf/icap.o
+	xleaf/icap.o		\
+	xleaf/xdma.o
 
 ccflags-y := -I$(FULL_XRT_PATH)/include	 \
 	-I$(FULL_DTC_PATH)

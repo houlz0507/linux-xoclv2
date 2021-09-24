@@ -38,6 +38,7 @@ struct xdma_tx_desc {
 	struct dma_async_tx_descriptor	txd;
 	struct scatterlist		*sg;
 	u32				sg_len;
+	u32				submitted_count;
 };
 
 struct xdma_channel {
@@ -50,12 +51,11 @@ struct xdma_channel {
 	u32			type;
 	struct xdma_desc	*descs;
 	dma_addr_t		desc_dma_addr;
-	u32			submitted_desc_count;
 	struct completion	req_compl;
 	enum dma_status		status;
 	spinlock_t		chan_lock;	/* lock for channel data */
 	phys_addr_t		endpoint_addr;
-	struct xdma_tx_desc	desc;
+	struct xdma_tx_desc	sw_desc;
 };
 
 struct xdma_chan_info {
@@ -80,6 +80,16 @@ static inline struct xdma_channel *to_xdma_channel(struct dma_chan *chan)
 	return container_of(chan, struct xdma_channel, chan);
 }
 
+static inline struct xdma_tx_desc *to_xdma_desc(struct dma_async_tx_descriptor *txd)
+{
+	return container_of(txd, struct xdma_tx_desc, txd);
+}
+
+static inline struct xdma_channel *desc_to_channel(struct xdma_tx_desc *desc)
+{
+	return container_of(desc, struct xdma_channel, desc);
+}
+
 enum dma_status xdma_tx_status(struct dma_chan *chan, dma_cookie_t cookie,
 			       struct dma_tx_state *txstate)
 {
@@ -94,8 +104,46 @@ enum dma_status xdma_tx_status(struct dma_chan *chan, dma_cookie_t cookie,
 	return status;
 }
 
-static void xdma_issue_pending(struct dma_chan *dma_chan)
+static void xdma_issue_pending(struct dma_chan *chan)
 {
+}
+
+static dma_cookie_t xdma_tx_submit(struct dma_async_tx_descriptor *txd)
+{
+	struct xdma_tx_desc *desc = to_xdma_desc(txd);
+	struct scatterlist *sg = desc->sg;
+	struct xdma_channel *channel;
+	struct xrt_xdma *xdma;
+	u32 val, sg_off = 0;
+	u64 done_bytes = 0;
+	int nents, ret = 0;
+
+	channel = desc_to_channel(desc);
+	xdma = xrt_get_drvdata(channel->xdev);
+	while (sg && !ret) {
+		done_bytes += xrt_xdma_start(channel, &sg, &sg_off);
+		if (!wait_for_completion_timeout(&channel->req_compl,
+						 msecs_to_jiffies(XDMA_REQUEST_MAX_WAIT))) {
+			xrt_err(xdma->xdev, "Wait for request timed out");
+			xdma_channel_reg_dump(channel);
+			ret = -EIO;
+		}
+		ret = regmap_read(xdma->regmap, XDMA_CHANNEL_COMPL_COUNT(channel->base), &val);
+		if (ret || val != channel->sw_desc.submitted_count) {
+			xrt_err(xdma->xdev, "Invalid completed count %d, expected %d",
+				val, channel->sw_desc.submitted_count);
+			ret = -EINVAL;
+		}
+		xdma_desc_clear_last(channel->sw_desc);
+		ret = regmap_read(xdma->regmap, XDMA_CHANNEL_STATUS_RC(channel->base), &val);
+		if (ret)
+			xrt_err(xdma->xdev, "failed read status register, ret %d", ret);
+
+		ret = regmap_write(xdma->regmap, XDMA_CHANNEL_CONTROL_W1C(channel->base),
+				   XDMA_CTRL_RUN_STOP);
+		if (ret)
+			xrt_err(xdma->xdev, "failed to write control_w1c, ret %d", ret);
+	}
 }
 
 static int xdma_slave_config(struct dma_chan *chan, struct dma_slave_config *config)
@@ -135,11 +183,11 @@ xdma_prep_slave_sg(struct dma_chan * chan, struct scatterlist *sgl,
 		return NULL;
 	}
 
-	channel->desc.sg = sgl;
-	channel->desc.sg_len = sg_len;
-	channel->desc.txd.flags = flags;
+	channel->sw_desc.sg = sgl;
+	channel->sw_desc.sg_len = sg_len;
+	channel->sw_desc.txd.flags = flags;
 
-	return &channel->desc.txd;
+	return &channel->sw_desc.txd;
 }
 
 static void xdma_free_chan_resources(struct dma_chan *chan)

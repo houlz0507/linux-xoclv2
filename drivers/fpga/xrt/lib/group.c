@@ -59,7 +59,9 @@ static int xrt_grp_root_cb(struct device *dev, void *parg,
 static int xrt_grp_cut_subdev_dtb(struct xrt_group *xg, struct xrt_dev_endpoints *eps,
 				  char *grp_dtb, char **dtbp)
 {
+	struct xrt_device *devctl_leaf;
 	int ret, i, ep_count = 0;
+	__be32 *pf_num = NULL;
 	char *dtb = NULL;
 
 	ret = xrt_md_create(DEV(xg->xdev), &dtb);
@@ -74,6 +76,14 @@ static int xrt_grp_cut_subdev_dtb(struct xrt_group *xg, struct xrt_dev_endpoints
 			xrt_md_get_compatible_endpoint(DEV(xg->xdev), grp_dtb, compat, &ep_name);
 		if (!ep_name)
 			continue;
+
+		devctl_leaf = xleaf_get_leaf_by_epname(xg->xdev, XRT_MD_NODE_BLP_ROM);
+		if (devctl_leaf) {
+			xrt_md_get_prop(DEV(xg->xdev), grp_dtb, ep_name, compat,
+					XRT_MD_PROP_PF_NUM, (const void **)&pf_num, NULL);
+			if (pf_num && *pf_num != 0)
+				continue;
+		}
 
 		ret = xrt_md_copy_endpoint(DEV(xg->xdev), dtb, grp_dtb, ep_name, compat, NULL);
 		if (ret)
