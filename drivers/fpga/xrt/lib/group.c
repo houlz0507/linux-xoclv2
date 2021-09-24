@@ -81,6 +81,7 @@ static int xrt_grp_cut_subdev_dtb(struct xrt_group *xg, struct xrt_dev_endpoints
 		if (devctl_leaf) {
 			xrt_md_get_prop(DEV(xg->xdev), grp_dtb, ep_name, compat,
 					XRT_MD_PROP_PF_NUM, (const void **)&pf_num, NULL);
+			xleaf_put_leaf(xg->xdev, devctl_leaf);
 			if (pf_num && *pf_num != 0)
 				continue;
 		}
