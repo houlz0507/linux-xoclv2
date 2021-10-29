@@ -103,7 +103,8 @@ xrt_subdev_getres(struct device *parent, void *md, struct resource **res, int *r
 	/* go through metadata and count endpoints in it */
 	xrt_md_get_next_endpoint(parent, md, NULL, &ep_name);
 	while (ep_name) {
-		ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_BAR_OFF, &bar_off);
+		ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_BAR_OFF,
+				      &bar_off, 0);
 		if (!ret)
 			count1++;
 		xrt_md_get_next_endpoint(parent, md, ep_name, &ep_name);
@@ -118,15 +119,18 @@ xrt_subdev_getres(struct device *parent, void *md, struct resource **res, int *r
 	ep_name = NULL;
 	xrt_md_get_next_endpoint(parent, md, NULL, &ep_name);
 	while (ep_name) {
-		ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_BAR_OFF, &bar_off);
+		ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_BAR_OFF,
+				      &bar_off, 0);
 		if (ret)
 			continue;
-		ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_SIZE, &reg_sz);
+		ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_SIZE,
+				      &reg_sz, 0);
 		if (ret) {
 			dev_err(parent, "Can not get reg size for %s", ep_name);
 			goto failed;
 		}
-		ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_BAR_IDX, &bar_idx);
+		ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_BAR_IDX,
+				      &bar_idx, 0);
 		bar_idx = ret ? 0 : bar_idx;
 		xleaf_get_root_res(to_xrt_dev(parent), bar_idx, &pci_res);
 		if (!pci_res)
@@ -169,7 +173,6 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 	struct xrt_subdev *sdev = NULL;
 	struct xrt_device *xdev = NULL;
 	struct resource *res = NULL;
-	void *packed_md = NULL;
 	int res_num = 0, ret;
 	size_t pdata_sz;
 	u32 md_len = 0;
@@ -181,13 +184,8 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 	}
 	sdev->xs_id = id;
 
-	if (!md) {
-		ret = xrt_md_pack(parent, md, &packed_md, &md_len);
-		if (ret) {
-			dev_err(parent, "failed pack metadata, ret %d", ret);
-			goto fail;
-		}
-	}
+	if (md)
+		md_len = xrt_md_size(md);
 
 	pdata_sz = sizeof(struct xrt_subdev_platdata) + md_len;
 	pdata = vzalloc(pdata_sz);
@@ -197,7 +195,7 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 	pdata->xsp_root_cb = pcb;
 	pdata->xsp_root_cb_arg = pcb_arg;
 	if (md_len)
-		memcpy(pdata->xsp_data, packed_md, md_len);
+		memcpy(pdata->xsp_data, md, md_len);
 	if (id == XRT_SUBDEV_GRP) {
 		/* Group can only be created by root driver. */
 		pdata->xsp_root_name = dev_name(parent);
@@ -219,33 +217,36 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 			goto fail2;
 		}
 	}
+
+	ret = xrt_drv_get(id);
+	if (ret) {
+		xrt_err(xdev, "failed to load driver module for dev %d", id);
+		goto fail2;
+	}
+
 	xdev = xrt_device_register(parent, id, res, res_num, pdata, pdata_sz);
 	vfree(res);
 	if (!xdev) {
 		dev_err(parent, "failed to create subdev for %s", xrt_drv_name(id));
-		goto fail2;
+		goto fail3;
 	}
 	sdev->xs_xdev = xdev;
 
 	if (device_attach(DEV(xdev)) != 1) {
 		xrt_err(xdev, "failed to attach");
-		goto fail3;
+		goto fail4;
 	}
 	
-	/* this should never fail */
-	ret = xrt_drv_get(id);
-	WARN_ON(ret);
-
 	vfree(pdata);
 	return sdev;
 
-fail3:
+fail4:
 	xrt_device_unregister(sdev->xs_xdev);
+fail3:
+	xrt_drv_put(id);
 fail2:
 	vfree(pdata);
 fail1:
-	vfree(packed_md);
-fail:
 	kfree(sdev);
 	return NULL;
 }

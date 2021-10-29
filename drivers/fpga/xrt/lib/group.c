@@ -11,7 +11,9 @@
 
 #include <linux/mod_devicetable.h>
 #include <linux/kmod.h>
+#include <linux/vmalloc.h>
 #include <linux/xrt/xleaf.h>
+#include <linux/xrt/metadata.h>
 #include "group.h"
 #include "subdev_pool.h"
 #include "lib-drv.h"
@@ -55,9 +57,77 @@ static int xrt_grp_root_cb(struct device *dev, void *parg,
 static int xrt_grp_create_leaves(struct xrt_group *xg)
 {
 	struct xrt_subdev_platdata *pdata = DEV_PDATA(xg->xdev);
+	struct device *dev = DEV(xg->xdev);
+	const char *ep_name = NULL;
+	int ret = 0, failed = 0;
+	void *dev_md = NULL;
+	u64 did;
+	u32 len;
 
 	if (!pdata)
 		return -EINVAL;
+
+	mutex_lock(&xg->lock);
+
+	if (xg->leaves_created) {
+		/*
+		 * This is expected since caller does not keep track of the state of the group
+		 * and may, in some cases, still try to create leaves after it has already been
+		 * created. This special error code will let the caller know what is going on.
+		 */
+		mutex_unlock(&xg->lock);
+		return -EEXIST;
+	}
+
+	/* Create all leaves based on metadata */
+	xrt_info(xg->xdev, "bringing up leaves...");
+	xrt_md_get_next_endpoint(dev, pdata->xsp_data, NULL, &ep_name);
+	while (ep_name) {
+pr_info("ADDING %s\n", ep_name);
+		ret = xrt_md_get_prop(dev, pdata->xsp_data, ep_name, XRT_MD_PROP_PRIV_DATA,
+				      NULL, &len);
+		ret = xrt_md_create(dev, 1, len, &dev_md);
+		if (ret) {
+			xrt_err(xg->xdev, "create device metadata for %s failed, ret %d",
+				ep_name, ret);
+			failed++;
+			break;
+		}
+		ret = xrt_md_copy_endpoint(dev, pdata->xsp_data, ep_name, dev_md);
+		if (ret) {
+			xrt_err(xg->xdev, "copy device metadata for %s failed, ret %d",
+				ep_name, ret);
+			failed++;
+			break;
+		}
+		ret = xrt_md_get_prop(dev, dev_md, ep_name, XRT_MD_PROP_DEVICE_ID, &did, NULL);
+		if (ret) {
+			xrt_err(xg->xdev, "get device id failed for %s, ret %d",
+				ep_name, ret);
+			failed++;
+			break;
+		}
+		ret = xrt_subdev_pool_add(&xg->leaves, did, xrt_grp_root_cb, xg, dev_md);
+		if (ret < 0) {
+			/*
+			 * It is not a fatal error here. Some functionality is not usable
+			 * due to this missing device, but the error can be handled
+			 * when the functionality is used.
+			 */
+			failed++;
+			xrt_err(xg->xdev, "failed to add %s: %d", xrt_drv_name(did), ret);
+		}
+		vfree(dev_md);
+		dev_md = NULL;
+		xrt_md_get_next_endpoint(dev, pdata->xsp_data, ep_name, &ep_name);
+	}
+
+	xg->leaves_created = true;
+	vfree(dev_md);
+	mutex_unlock(&xg->lock);
+
+	if (failed)
+		return -ECHILD;
 
 	return 0;
 }

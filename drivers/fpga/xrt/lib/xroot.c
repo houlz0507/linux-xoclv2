@@ -70,10 +70,10 @@ static bool xroot_group_match(enum xrt_subdev_id id, struct xrt_device *xdev, vo
 
 static int xroot_get_group(struct xroot *xr, int instance, struct xrt_device **grpp)
 {
-	int rc = 0;
+	struct xroot_group_match_arg arg = { XRT_SUBDEV_GRP, instance };
 	struct xrt_subdev_pool *grps = &xr->groups.pool;
 	struct device *dev = xr->dev;
-	struct xroot_group_match_arg arg = { XRT_SUBDEV_GRP, instance };
+	int rc = 0;
 
 	if (instance == XROOT_GROUP_LAST) {
 		rc = xrt_subdev_pool_get(grps, XRT_SUBDEV_MATCH_NEXT,
@@ -94,8 +94,9 @@ static int xroot_get_group(struct xroot *xr, int instance, struct xrt_device **g
 static void xroot_put_group(struct xroot *xr, struct xrt_device *grp)
 {
 	int inst = grp->instance;
-	int rc = xrt_subdev_pool_put(&xr->groups.pool, grp, xr->dev);
+	int rc;
 
+	rc = xrt_subdev_pool_put(&xr->groups.pool, grp, xr->dev);
 	if (rc)
 		xroot_err(xr, "failed to release group %d: %d", inst, rc);
 }
@@ -128,9 +129,9 @@ static int xroot_trigger_event(struct xroot *xr, struct xrt_event *e, bool async
 static void
 xroot_group_trigger_event(struct xroot *xr, int inst, enum xrt_events e)
 {
-	int ret;
 	struct xrt_device *xdev = NULL;
 	struct xrt_event evt = { 0 };
+	int ret;
 
 	WARN_ON(inst < 0);
 	/* Only triggers subdev specific events. */
@@ -163,7 +164,7 @@ int xroot_create_group(void *root, void *md)
 	atomic_inc(&xr->groups.bringup_pending_cnt);
 	ret = xrt_subdev_pool_add(&xr->groups.pool, XRT_SUBDEV_GRP, xroot_root_cb, xr, md);
 	if (ret >= 0) {
-		xroot_info(xr, "create group %d successfully", ret);
+		schedule_work(&xr->groups.bringup_work);
 	} else {
 		atomic_dec(&xr->groups.bringup_pending_cnt);
 		atomic_inc(&xr->groups.bringup_failed_cnt);
@@ -234,8 +235,8 @@ static int xroot_destroy_group(struct xroot *xr, int instance)
 static int xroot_lookup_group(struct xroot *xr,
 			      struct xrt_root_lookup_group *arg)
 {
-	int rc = -ENOENT;
 	struct xrt_device *grp = NULL;
+	int rc = -ENOENT;
 
 	while (rc < 0 && xroot_get_group(xr, XROOT_GROUP_LAST, &grp) != -ENOENT) {
 		if (arg->xpilp_match_cb(XRT_SUBDEV_GRP, grp, arg->xpilp_match_arg))
@@ -247,8 +248,8 @@ static int xroot_lookup_group(struct xroot *xr,
 
 static void xroot_event_work(struct work_struct *work)
 {
-	struct xroot_evt *tmp;
 	struct xroot *xr = container_of(work, struct xroot, events.evt_work);
+	struct xroot_evt *tmp;
 
 	mutex_lock(&xr->events.evt_lock);
 	while (!list_empty(&xr->events.evt_list)) {
@@ -283,8 +284,8 @@ static void xroot_event_fini(struct xroot *xr)
 
 static int xroot_get_leaf(struct xroot *xr, struct xrt_root_get_leaf *arg)
 {
-	int rc = -ENOENT;
 	struct xrt_device *grp = NULL;
+	int rc = -ENOENT;
 
 	while (rc && xroot_get_group(xr, XROOT_GROUP_LAST, &grp) != -ENOENT) {
 		rc = xleaf_call(grp, XRT_GROUP_GET_LEAF, arg);
@@ -295,8 +296,8 @@ static int xroot_get_leaf(struct xroot *xr, struct xrt_root_get_leaf *arg)
 
 static int xroot_put_leaf(struct xroot *xr, struct xrt_root_put_leaf *arg)
 {
-	int rc = -ENOENT;
 	struct xrt_device *grp = NULL;
+	int rc = -ENOENT;
 
 	while (rc && xroot_get_group(xr, XROOT_GROUP_LAST, &grp) != -ENOENT) {
 		rc = xleaf_call(grp, XRT_GROUP_PUT_LEAF, arg);
@@ -394,8 +395,9 @@ static int xroot_root_cb(struct device *dev, void *parg, enum xrt_root_cmd cmd, 
 static void xroot_bringup_group_work(struct work_struct *work)
 {
 	struct xrt_device *xdev = NULL;
-	struct xroot *xr = container_of(work, struct xroot, groups.bringup_work);
+	struct xroot *xr;
 
+	xr = container_of(work, struct xroot, groups.bringup_work);
 	while (xroot_get_group(xr, XROOT_GROUP_FIRST, &xdev) != -ENOENT) {
 		int r, i;
 

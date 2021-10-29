@@ -15,10 +15,9 @@
  */
 struct xrt_md_data {
 	u32		md_size;
-	u32		priv_data_sz;
-	u32		endpoint_off;
-	u32		endpoint_num;
-	u64		data[0]; /* priv_data blob, endpoint entries */
+	u32		ep_num;
+	u32		ep_end;
+	u64		eps[0]; /* endpoint entries */
 };
 
 /* endpoint format */
@@ -26,15 +25,24 @@ struct xrt_md_endpoint {
 	const char	*name;
 	u64		prop_bitmap;
 	u64		prop[XRT_MD_PROP_NUM];
+	u32		priv_data_sz;
+	u64		priv_data[0];
 };
 
-#define XRT_MAX_MD_SIZE		(4096 * 25)
+#define ENDPOINT_OFFSET(md, ep)	((uintptr_t)(ep) - (uintptr_t)(md))
+#define ENDPOINT_SIZE(ep)	(sizeof(struct xrt_md_endpoint) + (ep)->priv_data_sz)
 
-int xrt_md_create(struct device *dev, void **md)
+int xrt_md_create(struct device *dev, u32 max_ep_num, u32 max_ep_sz, void **md)
 {
-	*md = vzalloc(XRT_MAX_MD_SIZE);
+	u32 sz = sizeof(struct xrt_md_data) + max_ep_num *
+		(max_ep_sz + sizeof(struct xrt_md_endpoint));
+
+	*md = vzalloc(sz);
 	if (!*md)
 		return -ENOMEM;
+
+	((struct xrt_md_data *)*md)->md_size = sz;
+	((struct xrt_md_data *)*md)->ep_end = sizeof(struct xrt_md_data);
 
 	return 0;
 };
@@ -47,15 +55,14 @@ static int xrt_md_get_endpoint(struct device *dev, void *metadata, const char *e
 	struct xrt_md_endpoint *ep;
 	int i;
 
-	ep = (struct xrt_md_endpoint *)((char *)md->data + md->endpoint_off);
-	for (i = 0; i < md->endpoint_num; i++) {
+	ep = (struct xrt_md_endpoint *)md->eps;
+	for (i = 0; i < md->ep_num; i++) {
 		if (!strncmp(ep->name, ep_name, strlen(ep->name) + 1)) {
 			*endpoint = ep;
 			return 0;
 		}
-		ep++;
+		ep = (void *)ep + ENDPOINT_SIZE(ep);
 	}
-	*endpoint = ep;
 
 	return -ENOENT;
 }
@@ -70,45 +77,45 @@ int xrt_md_add_endpoint(struct device *dev, void *metadata, const char *ep_name)
 	if (!ret)
 		return -EEXIST;
 
+	if (md->ep_end + sizeof(*ep) > md->md_size) {
+		dev_err(dev, "no space for new endpoint %s", ep_name);
+		return -ENOMEM;
+	}
+	ep = metadata + md->ep_end;
 	ep->name = ep_name;
-	md->endpoint_num++;
+	md->ep_num++;
+	md->ep_end += sizeof(*ep);
 
 	return 0;
 }
 EXPORT_SYMBOL_GPL(xrt_md_add_endpoint);
 
-int xrt_md_set_data(struct device *dev, void *metadata, void *data, u32 len)
+static int xrt_md_set_data(struct device *dev, struct xrt_md_data *md, struct xrt_md_endpoint *ep,
+			   void *data, u32 len)
 {
-	struct xrt_md_data *md = metadata;
-	u32 new_ep_off;
-	int eps_sz;
+	u32 next_ep, new_next_ep;
 
-	if (len <= md->endpoint_off) {
-		memcpy(md->data, data, len);
-		md->priv_data_sz = len;
-		return 0;
+	if (len > ep->priv_data_sz && len - ep->priv_data_sz + md->ep_end > md->md_size) {
+		dev_err(dev, "no space for priv data");
+		return -ENOMEM;
 	}
 
-	new_ep_off = round_up(len, sizeof(u64));
-	if (md->endpoint_num > 0) {
-		eps_sz = sizeof(struct xrt_md_endpoint) * md->endpoint_num;
-		if (eps_sz + new_ep_off > md->md_size - sizeof(*md)) {
-			dev_err(dev, "data is too long, %d", len);
-			return -EINVAL;
-		}
-		
-		memmove((char *)md->data + new_ep_off, (char *)md->data + md->endpoint_off,
-			eps_sz);
+	next_ep = ENDPOINT_OFFSET(md, ep) + ENDPOINT_SIZE(ep);
+	new_next_ep = next_ep + len - ep->priv_data_sz;
+	if (next_ep != new_next_ep && next_ep != md->ep_end) {
+		memmove((char *)md + new_next_ep, (char *)md + next_ep,
+			md->ep_end - next_ep);
+		md->ep_end = md->ep_end + len - ep->priv_data_sz;
 	}
-	memcpy(md->data, data, len);
-	md->priv_data_sz = len;
-	md->endpoint_off = new_ep_off;
+
+	memcpy(ep->priv_data, data, len);
+	ep->priv_data_sz = len;
+
 	return 0;
 }
-EXPORT_SYMBOL_GPL(xrt_md_set_data);
 
 int xrt_md_set_prop(struct device *dev, void *metadata, const char *ep_name,
-		    u32 prop, u64 prop_val)
+		    u32 prop, u64 prop_val, u32 len)
 {
 	struct xrt_md_endpoint *ep = NULL;
 	int ret;
@@ -117,18 +124,27 @@ int xrt_md_set_prop(struct device *dev, void *metadata, const char *ep_name,
 	if (ret)
 		return -ENOENT;
 
+	if (prop == XRT_MD_PROP_PRIV_DATA) {
+		ret = xrt_md_set_data(dev, metadata, ep, (void *)prop_val, len);
+		if (ret)
+			return ret;
+	} else {
+		ep->prop[prop] = prop_val;
+	}
 	ep->prop_bitmap |= (1ULL << prop);
-	ep->prop[prop] = prop_val;
 
 	return 0;
 }
 EXPORT_SYMBOL_GPL(xrt_md_set_prop);
 
 int xrt_md_get_prop(struct device *dev, void *metadata, const char *ep_name,
-		    u32 prop, u64 *prop_val)
+		    u32 prop, u64 *prop_val, u32 *len)
 {
 	struct xrt_md_endpoint *ep = NULL;
 	int ret;
+
+	if (len)
+		*len = 0;
 
 	ret = xrt_md_get_endpoint(dev, metadata, ep_name, &ep);
 	if (ret)
@@ -137,7 +153,14 @@ int xrt_md_get_prop(struct device *dev, void *metadata, const char *ep_name,
 	if (!(ep->prop_bitmap & (1ULL << prop)))
 		return -ENOENT;
 
-	*prop_val = ep->prop[prop];
+	if (prop == XRT_MD_PROP_PRIV_DATA) {
+		if (len)
+			*len = ep->priv_data_sz;
+		if (prop_val)
+			*(void **)prop_val = ep->priv_data;
+	} else {
+		*prop_val = ep->prop[prop];
+	}
 
 	return 0;
 }
@@ -150,47 +173,73 @@ int xrt_md_get_next_endpoint(struct device *dev, void *metadata, const char *ep_
 	struct xrt_md_endpoint *ep = NULL;
 	int ret;
 
+pr_info("ep_name %s\n", ep_name);
 	if (!ep_name) {
-		if (!md->endpoint_num) {
-			*next_ep_name = NULL;
-			return -ENOENT;
+		if (!md->ep_num) {
+			ret = -ENOENT;
+			goto failed;
 		}
-		ep = (void *)md->data + md->endpoint_off;
+		ep = (struct xrt_md_endpoint *)md->eps;
+pr_info("ep, %p, name %s\n", ep, ep->name);
 		*next_ep_name = ep->name;
 		return 0;
 	}
 
 	ret = xrt_md_get_endpoint(dev, metadata, ep_name, &ep);
 	if (ret)
-		return -ENOENT;
+		goto failed;
 
-	ep++;
-	if ((uintptr_t)ep - (uintptr_t)md->data >= md->endpoint_num * sizeof(*ep)) {
-		*next_ep_name = NULL;
-		return -ENOENT;
+	ep = (void *)ep + ENDPOINT_SIZE(ep);
+	if (ENDPOINT_OFFSET(md, ep) == md->ep_end) {
+		ret = -ENOENT;
+		goto failed;
 	}
+
 	*next_ep_name = ep->name;
 	return 0;
+
+failed:
+	*next_ep_name = NULL;
+	return ret;
 }
 EXPORT_SYMBOL_GPL(xrt_md_get_next_endpoint);
 
-int xrt_md_pack(struct device *dev, void *metadata, void **packed_md, u32 *packed_md_len)
+int xrt_md_copy_endpoint(struct device *dev, void *metadata, const char *ep_name,
+			 void *dst_metadata)
 {
-	struct xrt_md_data *md = metadata;
-	u32 new_ep_off, eps_sz;
+	struct xrt_md_endpoint *ep = NULL, *dst_ep = NULL;
+	int ret;
 
-	new_ep_off = round_up(md->endpoint_off, md->priv_data_sz);
-	eps_sz = sizeof(struct xrt_md_endpoint) * md->endpoint_num;
-	*packed_md_len = sizeof(*md) + new_ep_off + eps_sz;
-	*packed_md = vzalloc(*packed_md_len);
-	if (!*packed_md) {
-		*packed_md_len = 0;
-		return -ENOMEM;
+	ret = xrt_md_get_endpoint(dev, metadata, ep_name, &ep);
+	if (ret)
+		return ret;
+
+	ret = xrt_md_get_endpoint(dev, dst_metadata, ep_name, &dst_ep);
+	if (ret) {
+		ret = xrt_md_add_endpoint(dev, dst_metadata, ep_name);
+		if (ret)
+			return ret;
 	}
+	ret = xrt_md_get_endpoint(dev, dst_metadata, ep_name, &dst_ep);
+	if (ret)
+		return ret;
 
-	memcpy(*packed_md, md, sizeof(*md) + new_ep_off);
-	memcpy(*packed_md + new_ep_off, (char *)md->data + md->endpoint_off, eps_sz);
+	if (ep->priv_data_sz) {
+		ret = xrt_md_set_prop(dev, dst_metadata, ep_name, XRT_MD_PROP_PRIV_DATA,
+				      (u64)ep->priv_data, ep->priv_data_sz);
+		if (ret)
+			return ret;
+	}
+	memcpy(dst_ep, ep, sizeof(*ep));
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(xrt_md_pack);
+EXPORT_SYMBOL_GPL(xrt_md_copy_endpoint);
+
+u32 xrt_md_size(void *metadata)
+{
+	struct xrt_md_data *md = metadata;
+
+	return md->md_size;
+}
+EXPORT_SYMBOL_GPL(xrt_md_size);

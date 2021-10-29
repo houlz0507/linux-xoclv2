@@ -111,7 +111,15 @@ static int xmgmt_add_vsec_node(struct xmgmt *xm, void *md)
 		goto failed;
 	}
 
-	ret = xrt_md_set_data(DEV(pdev), md, vsec_data, sizeof(vsec_data));
+	ret = xrt_md_set_prop(DEV(pdev), md, XRT_MD_NODE_VSEC, XRT_MD_PROP_DEVICE_ID,
+			      XRT_SUBDEV_VSEC, 0);
+	if (ret) {
+		xmgmt_err(xm, "set vsec device id failed, ret %d", ret);
+		goto failed;
+	}
+
+	ret = xrt_md_set_prop(DEV(pdev), md, XRT_MD_NODE_VSEC, XRT_MD_PROP_PRIV_DATA,
+			      (u64)vsec_data, sizeof(vsec_data));
 	if (ret)
 		xmgmt_err(xm, "set vsec data failed, ret %d", ret);
 
@@ -124,7 +132,7 @@ static int xmgmt_create_root_metadata(struct xmgmt *xm, void **root_md)
 	void *md;
 	int ret;
 
-	ret = xrt_md_create(XMGMT_DEV(xm), &md);
+	ret = xrt_md_create(XMGMT_DEV(xm), 2, XRT_VSEC_DATA_SZ * sizeof(u32), &md);
 	if (ret) {
 		xmgmt_err(xm, "create metadata failed, ret %d", ret);
 		goto failed;
@@ -199,6 +207,7 @@ static int xmgmt_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto failed_metadata;
 
 	ret = xroot_create_group(xm->root, md);
+	vfree(md);
 	if (ret) {
 		xmgmt_err(xm, "failed to create root group: %d", ret);
 		goto failed;

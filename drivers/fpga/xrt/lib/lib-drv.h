@@ -16,7 +16,6 @@ extern struct class *xrt_class;
 extern struct bus_type xrt_bus_type;
 
 const char *xrt_drv_name(enum xrt_subdev_id id);
-struct xrt_dev_endpoints *xrt_drv_get_endpoints(enum xrt_subdev_id id);
 int xrt_drv_get(enum xrt_subdev_id id);
 void xrt_drv_put(enum xrt_subdev_id id);
 
