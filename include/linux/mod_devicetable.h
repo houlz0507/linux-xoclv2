@@ -895,4 +895,14 @@ struct dfl_device_id {
 	kernel_ulong_t driver_data;
 };
 
+/**
+ * struct xrt_device_id - xrt device identifier
+ * @dev_id: XRT device id. See enum xrt_subdev_id.
+ * @driver_data: driver specific data.
+ */
+struct xrt_device_id {
+	__u32 dev_id;
+	kernel_ulong_t driver_data;
+};
+
 #endif /* LINUX_MOD_DEVICETABLE_H */
