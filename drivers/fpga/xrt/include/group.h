@@ -9,7 +9,7 @@
 #ifndef _XRT_GROUP_H_
 #define _XRT_GROUP_H_
 
-#include <linux/xrt/xleaf.h>
+#include <linux/fpga-xrt.h>
 
 /*
  * Group driver leaf calls.

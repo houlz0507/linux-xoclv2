@@ -10,10 +10,7 @@
 #ifndef _XRT_ROOT_H_
 #define _XRT_ROOT_H_
 
-#include <linux/xrt/xdevice.h>
-#include <linux/xrt/subdev_id.h>
-#include <linux/xrt/events.h>
-#include <linux/xrt/xleaf.h>
+#include <linux/fpga-xrt.h>
 
 /*
  * Root calls.

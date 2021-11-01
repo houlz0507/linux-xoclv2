@@ -11,6 +11,7 @@
 
 #include <linux/fs.h>
 #include <linux/cdev.h>
+#include <linux/of.h>
 
 #define XRT_MAX_DEVICE_NODES		128
 #define XRT_INVALID_DEVICE_INST		(XRT_MAX_DEVICE_NODES + 1)
@@ -120,9 +121,8 @@ static inline void *xrt_get_xdev_data(struct device *dev)
 }
 
 struct xrt_device *
-xrt_device_register(struct device *parent, u32 id,
-		    struct resource *res, u32 res_num,
-		    void *pdata, size_t data_sz);
+xrt_device_register(struct device *parent, u32 id, struct resource *res, u32 res_num,
+		    struct device_node *dn, void *pdata, size_t data_sz);
 void xrt_device_unregister(struct xrt_device *xdev);
 int xrt_register_driver(struct xrt_driver *drv);
 void xrt_unregister_driver(struct xrt_driver *drv);

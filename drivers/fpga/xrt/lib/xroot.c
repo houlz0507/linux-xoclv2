@@ -12,7 +12,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/hwmon.h>
-#include <linux/xrt/xleaf.h>
+#include <linux/fpga-xrt.h>
 #include "xroot.h"
 #include "group.h"
 #include "subdev_pool.h"
@@ -162,7 +162,7 @@ int xroot_create_group(void *root, void *md)
 	int ret;
 
 	atomic_inc(&xr->groups.bringup_pending_cnt);
-	ret = xrt_subdev_pool_add(&xr->groups.pool, XRT_SUBDEV_GRP, xroot_root_cb, xr, md);
+	ret = xrt_subdev_pool_add(&xr->groups.pool, XRT_SUBDEV_GRP, xroot_root_cb, xr, md, NULL);
 	if (ret >= 0) {
 		schedule_work(&xr->groups.bringup_work);
 	} else {

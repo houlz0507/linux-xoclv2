@@ -10,6 +10,7 @@
 #include <linux/module.h>
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
+#include <linux/of_device.h>
 #include "xroot.h"
 #include "lib-drv.h"
 
@@ -44,6 +45,9 @@ static int xrt_bus_match(struct device *dev, struct device_driver *drv)
 	struct xrt_driver *xdrv = to_xrt_drv(drv);
 
 	if (xdev->subdev_id == xdrv->subdev_id)
+		return 1;
+
+	if (of_driver_match_device(dev, drv))
 		return 1;
 
 	return 0;
@@ -127,9 +131,9 @@ static int __get_driver(struct device_driver *drv, void *_data)
 	if (xdrv->subdev_id == data->id) {
 		if (xdrv->driver.owner && xdrv->driver.owner != THIS_MODULE) {
 			if (try_module_get(xdrv->driver.owner))
-				*(int *)data->arg = 0;
+				data->arg = xdrv;
 		} else {
-			*(int *)data->arg = 0;
+			data->arg = xdrv;
 		}
 
 		return 1;
@@ -193,21 +197,18 @@ static void xrt_drv_put_instance(enum xrt_subdev_id id, int instance)
 	ida_free(&xrt_device_ida, xrt_instance_to_id(id, instance));
 }
 
-int xrt_drv_get(enum xrt_subdev_id id)
+struct xrt_driver *xrt_drv_get(enum xrt_subdev_id id)
 {
 	struct xrt_find_drv_data data = { 0 };
-	int ret = -EINVAL;
 
 	data.id = id;
-	data.arg = &ret;
 	bus_for_each_drv(&xrt_bus_type, NULL, &data, __get_driver);
-
-	if (ret) {
+	if (!data.arg) {
 		request_module("xrt:d%08X", id);
 		bus_for_each_drv(&xrt_bus_type, NULL, &data, __get_driver);
 	}
 
-	return ret;
+	return data.arg;
 }
 
 void xrt_drv_put(enum xrt_subdev_id id)
@@ -241,9 +242,8 @@ void xrt_device_unregister(struct xrt_device *xdev)
 }
 
 struct xrt_device *
-xrt_device_register(struct device *parent, u32 id,
-		    struct resource *res, u32 res_num,
-		    void *pdata, size_t data_sz)
+xrt_device_register(struct device *parent, u32 id, struct resource *res, u32 res_num,
+		    struct device_node *dn, void *pdata, size_t data_sz)
 {
 	struct xrt_device *xdev = NULL;
 	int ret;
@@ -287,6 +287,7 @@ xrt_device_register(struct device *parent, u32 id,
 		goto fail;
 	}
 	xdev->state = XRT_DEVICE_STATE_ADDED;
+	//xdev->dev.of_node = dn;
 
 	return xdev;
 
@@ -317,6 +318,7 @@ EXPORT_SYMBOL_GPL(xrt_get_resource);
  */
 static void (*leaf_init_fini_cbs[])(bool) = {
 	group_leaf_init_fini,
+	icap_leaf_init_fini,
 };
 
 static __init int xrt_lib_init(void)

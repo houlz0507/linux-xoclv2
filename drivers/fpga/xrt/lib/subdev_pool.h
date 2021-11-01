@@ -38,7 +38,7 @@ int xrt_subdev_pool_put(struct xrt_subdev_pool *spool,
 			struct device *holder_dev);
 int xrt_subdev_pool_add(struct xrt_subdev_pool *spool,
 			enum xrt_subdev_id id, xrt_subdev_root_cb_t pcb,
-			void *pcb_arg, void *md);
+			void *pcb_arg, void *md, struct device_node *dn);
 int xrt_subdev_pool_del(struct xrt_subdev_pool *spool,
 			enum xrt_subdev_id id, int instance);
 ssize_t xrt_subdev_pool_get_holders(struct xrt_subdev_pool *spool,

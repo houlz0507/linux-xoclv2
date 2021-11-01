@@ -9,7 +9,7 @@
  */
 
 #include <linux/vmalloc.h>
-#include <linux/xrt/metadata.h>
+#include <linux/fpga-xrt.h>
 /*
  * Device metadata format
  */
@@ -35,7 +35,7 @@ struct xrt_md_endpoint {
 int xrt_md_create(struct device *dev, u32 max_ep_num, u32 max_ep_sz, void **md)
 {
 	u32 sz = sizeof(struct xrt_md_data) + max_ep_num *
-		(max_ep_sz + sizeof(struct xrt_md_endpoint));
+		(roundup(max_ep_sz, sizeof(u64)) + sizeof(struct xrt_md_endpoint));
 
 	*md = vzalloc(sz);
 	if (!*md)
@@ -173,14 +173,12 @@ int xrt_md_get_next_endpoint(struct device *dev, void *metadata, const char *ep_
 	struct xrt_md_endpoint *ep = NULL;
 	int ret;
 
-pr_info("ep_name %s\n", ep_name);
 	if (!ep_name) {
 		if (!md->ep_num) {
 			ret = -ENOENT;
 			goto failed;
 		}
 		ep = (struct xrt_md_endpoint *)md->eps;
-pr_info("ep, %p, name %s\n", ep, ep->name);
 		*next_ep_name = ep->name;
 		return 0;
 	}

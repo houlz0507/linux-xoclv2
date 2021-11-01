@@ -14,7 +14,7 @@
 #include <linux/aer.h>
 #include <linux/vmalloc.h>
 #include <linux/delay.h>
-#include <linux/xrt/metadata.h>
+#include <linux/fpga-xrt.h>
 #include "xroot.h"
 #include "xmgmt.h"
 

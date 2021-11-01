@@ -2227,5 +2227,15 @@ config MFD_RSMU_SPI
 	  Additional drivers must be enabled in order to use the functionality
 	  of the device.
 
+config MFD_XRT_VSEC
+	tristate "Xilinx Alveo VSEC driver"
+	depends on FPGA_XRT_LIB
+	help
+	  Select this option to enable XRT VSEC driver.
+
+	  Alveo VSEC contains the required information for Alveo initialization.
+	  This driver provides support for read VSEC information from Alveo device.
+	  Then it pass this information to XRT driver infrastructure.
+
 endmenu
 endif

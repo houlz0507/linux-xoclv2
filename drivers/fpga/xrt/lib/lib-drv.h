@@ -16,7 +16,7 @@ extern struct class *xrt_class;
 extern struct bus_type xrt_bus_type;
 
 const char *xrt_drv_name(enum xrt_subdev_id id);
-int xrt_drv_get(enum xrt_subdev_id id);
+struct xrt_driver *xrt_drv_get(enum xrt_subdev_id id);
 void xrt_drv_put(enum xrt_subdev_id id);
 
 /* Module's init/fini routines for leaf driver in xrt-lib module */
@@ -31,5 +31,6 @@ void name##_leaf_init_fini(bool init)					\
 
 /* Module's init/fini routines for leaf driver in xrt-lib module */
 void group_leaf_init_fini(bool init);
+void icap_leaf_init_fini(bool init);
 
 #endif	/* _LIB_DRV_H_ */

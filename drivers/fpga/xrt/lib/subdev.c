@@ -17,8 +17,7 @@
 
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
-#include <linux/xrt/xleaf.h>
-#include <linux/xrt/metadata.h>
+#include <linux/fpga-xrt.h>
 #include "subdev_pool.h"
 #include "lib-drv.h"
 
@@ -87,27 +86,30 @@ int xrt_subdev_root_request(struct xrt_device *self, u32 cmd, void *arg)
 }
 
 static int
-xrt_subdev_getres(struct device *parent, void *md, struct resource **res, int *res_num)
+xrt_subdev_getres(struct device *parent, void *md, struct device_node *dn,
+		  struct resource **res, int *res_num)
 {
-	struct xrt_subdev_platdata *pdata;
 	struct resource *pci_res = NULL;
 	int count1 = 0, count2 = 0, ret;
 	u64 bar_off, reg_sz, bar_idx;
 	const char *ep_name = NULL;
+	const __be64 *reg;
+	int len;
 
-	if (!md)
-		return -EINVAL;
-
-	pdata = DEV_PDATA(to_xrt_dev(parent));
-
-	/* go through metadata and count endpoints in it */
-	xrt_md_get_next_endpoint(parent, md, NULL, &ep_name);
-	while (ep_name) {
-		ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_BAR_OFF,
-				      &bar_off, 0);
-		if (!ret)
+	if (dn) {
+		reg = of_get_property(dn, "reg", &len);
+		if (reg)
 			count1++;
-		xrt_md_get_next_endpoint(parent, md, ep_name, &ep_name);
+	}
+
+	if (md) {
+		/* go through metadata and count endpoints in it */
+		for_each_endpoint(parent, md, ep_name) {
+			ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_BAR_OFF,
+					      &bar_off, 0);
+			if (!ret)
+				count1++;
+		}
 	}
 	if (!count1)
 		return 0;
@@ -116,41 +118,65 @@ xrt_subdev_getres(struct device *parent, void *md, struct resource **res, int *r
 	if (!*res)
 		return -ENOMEM;
 
-	ep_name = NULL;
-	xrt_md_get_next_endpoint(parent, md, NULL, &ep_name);
-	while (ep_name) {
-		ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_BAR_OFF,
-				      &bar_off, 0);
-		if (ret)
-			continue;
-		ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_SIZE,
-				      &reg_sz, 0);
-		if (ret) {
-			dev_err(parent, "Can not get reg size for %s", ep_name);
-			goto failed;
-		}
-		ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_BAR_IDX,
-				      &bar_idx, 0);
-		bar_idx = ret ? 0 : bar_idx;
+	if (reg) {
+		const __be32 *bar_idx_p;
+
+		bar_idx = 0;
+		bar_idx_p = of_get_property(dn, "pcie_bar_mapping", &len);
+		if (bar_idx_p)
+			bar_idx = be32_to_cpu(*bar_idx_p);
+
 		xleaf_get_root_res(to_xrt_dev(parent), bar_idx, &pci_res);
-		if (!pci_res)
-			continue;
+		if (pci_res) {
+			(*res)[count2].start = pci_res->start + be64_to_cpu(reg[0]);
+			(*res)[count2].end = (*res)[count2].start + be64_to_cpu(reg[1]) - 1;
+			(*res)[count2].flags = IORESOURCE_MEM;
+			(*res)[count2].parent = pci_res;
+			ret = request_resource(pci_res, *res + count2);
+			if (ret) {
+				dev_err(parent, "Conflict resource %pR\n", *res + count2);
+				goto failed;
+			}
+			release_resource(*res + count2);
 
-		(*res)[count2].start = pci_res->start + bar_off;
-		(*res)[count2].end = pci_res->start + reg_sz - 1;
-		(*res)[count2].flags = IORESOURCE_MEM;
-		(*res)[count2].name = ep_name;
-		(*res)[count2].parent = pci_res;
-		/* check if there is conflicted resource */
-		ret = request_resource(pci_res, *res + count2);
-		if (ret) {
-			dev_err(parent, "Conflict resource %pR\n", *res + count2);
-			goto failed;
+			count2++;
 		}
-		release_resource(*res + count2);
+	}
+	if (md) {
+		ep_name = NULL;
+		for_each_endpoint(parent, md, ep_name) {
+			ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_BAR_OFF,
+					      &bar_off, 0);
+			if (ret)
+				continue;
+			ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_SIZE,
+					      &reg_sz, 0);
+			if (ret) {
+				dev_err(parent, "Can not get reg size for %s", ep_name);
+				goto failed;
+			}
+			ret = xrt_md_get_prop(parent, md, ep_name, XRT_MD_PROP_REG_BAR_IDX,
+					      &bar_idx, 0);
+			bar_idx = ret ? 0 : bar_idx;
+			xleaf_get_root_res(to_xrt_dev(parent), bar_idx, &pci_res);
+			if (!pci_res)
+				continue;
 
-		count2++;
-		xrt_md_get_next_endpoint(parent, md, ep_name, &ep_name);
+			(*res)[count2].start = pci_res->start + bar_off;
+			(*res)[count2].end = pci_res->start + reg_sz - 1;
+			(*res)[count2].flags = IORESOURCE_MEM;
+			(*res)[count2].name = ep_name;
+			(*res)[count2].parent = pci_res;
+			/* check if there is conflicted resource */
+			ret = request_resource(pci_res, *res + count2);
+			if (ret) {
+				dev_err(parent, "Conflict resource %pR\n", *res + count2);
+				goto failed;
+			}
+			release_resource(*res + count2);
+
+			count2++;
+		}
 	}
 
 	WARN_ON(count1 != count2);
@@ -167,13 +193,14 @@ failed:
 
 static struct xrt_subdev *
 xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
-		  xrt_subdev_root_cb_t pcb, void *pcb_arg, void *md)
+		  xrt_subdev_root_cb_t pcb, void *pcb_arg, void *md,
+		  struct device_node *dn)
 {
 	struct xrt_subdev_platdata *pdata = NULL;
 	struct xrt_subdev *sdev = NULL;
 	struct xrt_device *xdev = NULL;
 	struct resource *res = NULL;
-	int res_num = 0, ret;
+	int res_num = 0;
 	size_t pdata_sz;
 	u32 md_len = 0;
 
@@ -209,7 +236,7 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 	
 	/* Create subdev. */
 	if (id != XRT_SUBDEV_GRP) {
-		int rc = xrt_subdev_getres(parent, md, &res, &res_num);
+		int rc = xrt_subdev_getres(parent, md, dn, &res, &res_num);
 
 		if (rc) {
 			dev_err(parent, "failed to get resource for %s: %d",
@@ -218,32 +245,24 @@ xrt_subdev_create(struct device *parent, enum xrt_subdev_id id,
 		}
 	}
 
-	ret = xrt_drv_get(id);
-	if (ret) {
-		xrt_err(xdev, "failed to load driver module for dev %d", id);
-		goto fail2;
-	}
-
-	xdev = xrt_device_register(parent, id, res, res_num, pdata, pdata_sz);
+	xdev = xrt_device_register(parent, id, res, res_num, dn, pdata, pdata_sz);
 	vfree(res);
 	if (!xdev) {
 		dev_err(parent, "failed to create subdev for %s", xrt_drv_name(id));
-		goto fail3;
+		goto fail2;
 	}
 	sdev->xs_xdev = xdev;
 
 	if (device_attach(DEV(xdev)) != 1) {
 		xrt_err(xdev, "failed to attach");
-		goto fail4;
+		goto fail3;
 	}
-	
+
 	vfree(pdata);
 	return sdev;
 
-fail4:
-	xrt_device_unregister(sdev->xs_xdev);
 fail3:
-	xrt_drv_put(id);
+	xrt_device_unregister(sdev->xs_xdev);
 fail2:
 	vfree(pdata);
 fail1:
@@ -402,14 +421,15 @@ xrt_subdev_release(struct xrt_subdev *sdev, struct device *holder_dev)
 }
 
 int xrt_subdev_pool_add(struct xrt_subdev_pool *spool, enum xrt_subdev_id id,
-			xrt_subdev_root_cb_t pcb, void *pcb_arg, void *md)
+			xrt_subdev_root_cb_t pcb, void *pcb_arg, void *md,
+			struct device_node *dn)
 {
 	struct list_head *dl = &spool->xsp_dev_list;
 	struct mutex *lk = &spool->xsp_lock;
 	struct xrt_subdev *sdev;
 	int ret = 0;
 
-	sdev = xrt_subdev_create(spool->xsp_owner, id, pcb, pcb_arg, md);
+	sdev = xrt_subdev_create(spool->xsp_owner, id, pcb, pcb_arg, md, dn);
 	if (sdev) {
 		mutex_lock(lk);
 		if (spool->xsp_closing) {
@@ -580,6 +600,18 @@ void xrt_subdev_pool_handle_event(struct xrt_subdev_pool *spool, struct xrt_even
 {
 	/* place holder */
 }
+
+int xleaf_create_group(struct xrt_device *xdev, void *md)
+{
+	return xrt_subdev_root_request(xdev, XRT_ROOT_CREATE_GROUP, md);
+}
+EXPORT_SYMBOL_GPL(xleaf_create_group);
+
+int xleaf_destroy_group(struct xrt_device *xdev, int instance)
+{
+	return xrt_subdev_root_request(xdev, XRT_ROOT_REMOVE_GROUP, (void *)(uintptr_t)instance);
+}
+EXPORT_SYMBOL_GPL(xleaf_destroy_group);
 
 ssize_t xrt_subdev_pool_get_holders(struct xrt_subdev_pool *spool,
 				    struct xrt_device *xdev, char *buf, size_t len)
