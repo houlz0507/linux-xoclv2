@@ -237,6 +237,9 @@ void xrt_device_unregister(struct xrt_device *xdev)
 	if (xdev->instance != XRT_INVALID_DEVICE_INST)
 		xrt_drv_put_instance(xdev->subdev_id, xdev->instance);
 
+	if (xdev->dev.of_node)
+		of_node_put(xdev->dev.of_node);
+
 	if (xdev->dev.release == xrt_device_release)
 		put_device(&xdev->dev);
 }
@@ -287,7 +290,7 @@ xrt_device_register(struct device *parent, u32 id, struct resource *res, u32 res
 		goto fail;
 	}
 	xdev->state = XRT_DEVICE_STATE_ADDED;
-	//xdev->dev.of_node = dn;
+	xdev->dev.of_node = of_node_get(dn);
 
 	return xdev;
 
