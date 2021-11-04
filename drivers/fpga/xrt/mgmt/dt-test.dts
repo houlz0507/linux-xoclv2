@@ -1,0 +1,480 @@
+/dts-v1/;
+
+/ {
+	logic_uuid = "50d6e8557f18deb41acd31eb231faa9c";
+
+	schema_version {
+		major = <0x01>;
+		minor = <0x00>;
+	};
+
+	interfaces {
+
+		@0 {
+			interface_uuid = "0c5b3afda8912710b044d939384efe67";
+		};
+	};
+
+	addressable_endpoints {
+
+		ep_bar_layout_mgmt_00 {
+			reg = <0x00 0x1f08000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-bar_layout-1.0\0bar_layout";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_bar_layout_user_00 {
+			reg = <0x00 0x1f10000 0x00 0x1000>;
+			pcie_physical_function = <0x01>;
+			compatible = "xilinx.com,reg_abs-bar_layout-1.0\0bar_layout";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_c2h_data_00 {
+			reg = <0x00 0x00 0x04 0x00>;
+			pcie_physical_function = <0x01>;
+			compatible = "xilinx.com,reg_abs-memory-1.0\0memory";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_card_flash_program_00 {
+			reg = <0x00 0x1f06000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_quad_spi-1.0\0axi_quad_spi";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_card_flash_program_00";
+		};
+
+		ep_cmc_firmware_mem_00 {
+			reg = <0x00 0x1e20000 0x00 0x20000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_bram_ctrl-1.0\0axi_bram_ctrl";
+			pcie_bar_mapping = <0x00>;
+
+			firmware {
+				firmware_product_name = "cmc";
+				firmware_branch_name = "u50";
+				firmware_version_major = <0x01>;
+				firmware_version_minor = <0x00>;
+			};
+		};
+
+		ep_cmc_mutex_00 {
+			reg = <0x00 0x1e02000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-gpio_mutex-1.0\0gpio_mutex";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_cmc_regmap_00 {
+			reg = <0x00 0x1e08000 0x00 0x2000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_bram_ctrl-1.0\0axi_bram_ctrl";
+			pcie_bar_mapping = <0x00>;
+
+			firmware {
+				firmware_product_name = "sc-fw";
+				firmware_branch_name = "u50";
+				firmware_version_major = <0x05>;
+			};
+		};
+
+		ep_cmc_reset_00 {
+			reg = <0x00 0x1e01000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-gpio_aresetn-1.0\0gpio_aresetn";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_ddr_mem_calib_00 {
+			reg = <0x00 0x63000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-cmp_ddr_calib-1.0\0cmp_ddr_calib";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_debug_bscan_mgmt_00 {
+			reg = <0x00 0x1e90000 0x00 0x10000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-debug_bridge-1.0\0debug_bridge";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_debug_uptime_counters_00 {
+			reg = <0x00 0x1f0c000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-debug_uptime_counters-1.0\0debug_uptime_counters";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_ert_command_queue_user_00 {
+			reg = <0x80 0x00 0x00 0x10000>;
+			pcie_physical_function = <0x01>;
+			compatible = "xilinx.com,reg_abs-ert_command_queue-1.0\0ert_command_queue";
+			pcie_bar_mapping = <0x04>;
+		};
+
+		ep_ert_config_00 {
+			reg = <0x00 0x4000 0x00 0x1000>;
+			pcie_physical_function = <0x01>;
+			compatible = "xilinx.com,reg_abs-gpio_ert_config-1.0\0gpio_ert_config";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_ert_debug_uart_00 {
+			reg = <0x00 0x20000 0x00 0x10000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_uartlite-1.0\0axi_uartlite";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_ert_debug_uart_00";
+		};
+
+		ep_ert_firmware_mem_00 {
+			reg = <0x00 0x10000 0x00 0x8000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_bram_ctrl-1.0\0axi_bram_ctrl";
+			pcie_bar_mapping = <0x00>;
+
+			firmware {
+				firmware_product_name = "ert";
+				firmware_branch_name = "v30";
+				firmware_version_major = <0x03>;
+			};
+		};
+
+		ep_ert_reset_00 {
+			reg = <0x00 0x1000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-gpio_aresetn-1.0\0gpio_aresetn";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_ert_sched_00 {
+			reg = <0x00 0x10000 0x00 0x10000>;
+			pcie_physical_function = <0x01>;
+			compatible = "xilinx.com,reg_abs-shell_utils_embedded_scheduler_hw-1.0\0shell_utils_embedded_scheduler_hw";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_cu_bank_00\0interrupt_cu_bank_01\0interrupt_cu_bank_02\0interrupt_cu_bank_03";
+		};
+
+		ep_firewall_blp_ctrl_mgmt_00 {
+			reg = <0x00 0x1f02000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_firewall-1.1\0axi_firewall";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_firewall_00";
+		};
+
+		ep_firewall_blp_ctrl_user_00 {
+			reg = <0x00 0x1f03000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_firewall-1.1\0axi_firewall";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_firewall_00";
+		};
+
+		ep_firewall_ctrl_debug_00 {
+			reg = <0x00 0x44000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_firewall-1.1\0axi_firewall";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_firewall_00";
+		};
+
+		ep_firewall_ctrl_mgmt_00 {
+			reg = <0x00 0x42000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_firewall-1.1\0axi_firewall";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_firewall_00";
+		};
+
+		ep_firewall_ctrl_user_00 {
+			reg = <0x00 0x43000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_firewall-1.1\0axi_firewall";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_firewall_00";
+		};
+
+		ep_firewall_data_c2h_00 {
+			reg = <0x00 0x48000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_firewall-1.1\0axi_firewall";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_firewall_00";
+		};
+
+		ep_firewall_data_h2c_00 {
+			reg = <0x00 0x45000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_firewall-1.1\0axi_firewall";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_firewall_00";
+		};
+
+		ep_fpga_configuration_00 {
+			reg = <0x00 0x1e88000 0x00 0x8000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_hwicap-1.0\0axi_hwicap";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_fpga_configuration_00";
+		};
+
+		ep_icap_arb_00 {
+			reg = <0x00 0x1e81000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-icap_arb-1.0\0icap_arb";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_icap_reset_00 {
+			reg = <0x00 0x1f07000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-gpio_aresetn-1.0\0gpio_aresetn";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_intc_aggregated_mgmt_00 {
+			reg = <0x00 0x81000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_intc-1.0\0axi_intc";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_aggregated_mgmt_00";
+
+			interrupt_mapping {
+
+				@0 {
+					alias_name = "interrupt_card_flash_program_00";
+					interrupts = <0x02 0x02>;
+				};
+
+				@1 {
+					alias_name = "interrupt_cmc_00";
+					interrupts = <0x03 0x03>;
+				};
+
+				@2 {
+					alias_name = "interrupt_ert_00";
+					interrupts = <0x04 0x04>;
+				};
+
+				@3 {
+					alias_name = "interrupt_firewall_00";
+					interrupts = <0x00 0x00>;
+				};
+
+				@4 {
+					alias_name = "interrupt_fpga_configuration_00";
+					interrupts = <0x01 0x01>;
+				};
+			};
+		};
+
+		ep_intc_cmc_00 {
+			reg = <0x00 0x1e03000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_intc-1.0\0axi_intc";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_cmc_00";
+
+			interrupt_mapping {
+
+				@0 {
+					alias_name = "interrupt_cmc_watchdog_timeout_00";
+					interrupts = <0x00 0x00>;
+				};
+			};
+		};
+
+		ep_intc_cu_00 {
+			reg = <0x00 0x00 0x00 0x1000>;
+			pcie_physical_function = <0x01>;
+			compatible = "xilinx.com,reg_abs-axi_intc-1.0\0axi_intc";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_cu_bank_00";
+		};
+
+		ep_intc_cu_01 {
+			reg = <0x00 0x1000 0x00 0x1000>;
+			pcie_physical_function = <0x01>;
+			compatible = "xilinx.com,reg_abs-axi_intc-1.0\0axi_intc";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_cu_bank_01";
+		};
+
+		ep_intc_cu_02 {
+			reg = <0x00 0x2000 0x00 0x1000>;
+			pcie_physical_function = <0x01>;
+			compatible = "xilinx.com,reg_abs-axi_intc-1.0\0axi_intc";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_cu_bank_02";
+		};
+
+		ep_intc_cu_03 {
+			reg = <0x00 0x3000 0x00 0x1000>;
+			pcie_physical_function = <0x01>;
+			compatible = "xilinx.com,reg_abs-axi_intc-1.0\0axi_intc";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_cu_bank_03";
+		};
+
+		ep_intc_ert_00 {
+			reg = <0x00 0x2000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-axi_intc-1.0\0axi_intc";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_ert_00";
+
+			interrupt_mapping {
+
+				@0 {
+					alias_name = "interrupt_ert_debug_uart_00";
+					interrupts = <0x01 0x01>;
+				};
+
+				@1 {
+					alias_name = "interrupt_ert_watchdog_timeout_00";
+					interrupts = <0x00 0x00>;
+				};
+			};
+		};
+
+		ep_mailbox_mgmt_00 {
+			reg = <0x00 0x1f10000 0x00 0x10000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-mailbox-1.0\0mailbox";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_mailbox_user_to_mgmt_00";
+		};
+
+		ep_mailbox_user_00 {
+			reg = <0x00 0x1f00000 0x00 0x10000>;
+			pcie_physical_function = <0x01>;
+			compatible = "xilinx.com,reg_abs-mailbox-1.0\0mailbox";
+			pcie_bar_mapping = <0x00>;
+			interrupt_alias = "interrupt_mailbox_mgmt_to_user_00";
+		};
+
+		ep_msix_mgmt_00 {
+			reg = <0x00 0x00 0x00 0x40000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-msix-1.0\0msix";
+			pcie_bar_mapping = <0x02>;
+
+			interrupt_mapping {
+
+				@0 {
+					alias_name = "interrupt_aggregated_mgmt_00";
+					interrupts = <0x01 0x01>;
+				};
+
+				@1 {
+					alias_name = "interrupt_mailbox_user_to_mgmt_00";
+					interrupts = <0x00 0x00>;
+				};
+			};
+		};
+
+		ep_p2p_00 {
+			reg = <0x00 0x00 0x02 0x200000>;
+			pcie_physical_function = <0x01>;
+			compatible = "xilinx.com,reg_abs-p2p-1.0\0p2p";
+			pcie_bar_mapping = <0x04>;
+		};
+
+		ep_pcie_link_mon_00 {
+			reg = <0x00 0x1f05000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-gpio_pcie_link_mon-1.0\0gpio_pcie_link_mon";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_platform_info_mgmt_00 {
+			reg = <0x00 0x1f09000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-platform_info-1.0\0platform_info";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_platform_info_user_00 {
+			reg = <0x00 0x1f11000 0x00 0x1000>;
+			pcie_physical_function = <0x01>;
+			compatible = "xilinx.com,reg_abs-platform_info-1.0\0platform_info";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_pr_isolate_ulp_00 {
+			reg = <0x00 0x41000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-pr_isolate-1.0\0pr_isolate";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_remap_data_c2h_00 {
+			reg = <0x00 0x81000 0x00 0x1000>;
+			pcie_physical_function = <0x01>;
+			compatible = "xilinx.com,reg_abs-shell_util_addr_remap-1.0\0shell_util_addr_remap";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_remap_p2p_00 {
+			reg = <0x00 0x80000 0x00 0x1000>;
+			pcie_physical_function = <0x01>;
+			compatible = "xilinx.com,reg_abs-shell_util_addr_remap-1.0\0shell_util_addr_remap";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_uuid_rom_blp_00 {
+			reg = <0x00 0x1f04000 0x00 0x1000>;
+			pcie_physical_function = <0x00>;
+			compatible = "xilinx.com,reg_abs-uuid_rom-1.0\0uuid_rom";
+			pcie_bar_mapping = <0x00>;
+		};
+
+		ep_xdma_00 {
+			reg = <0x00 0x00 0x00 0x40000>;
+			pcie_physical_function = <0x01>;
+			compatible = "xilinx.com,reg_abs-xdma-1.0\0xdma";
+			pcie_bar_mapping = <0x02>;
+
+			interrupt_mapping {
+
+				@0 {
+					alias_name = "interrupt_cu_bank_00";
+					interrupts = <0x09 0x09>;
+				};
+
+				@1 {
+					alias_name = "interrupt_cu_bank_01";
+					interrupts = <0x0a 0x0a>;
+				};
+
+				@2 {
+					alias_name = "interrupt_cu_bank_02";
+					interrupts = <0x0b 0x0b>;
+				};
+
+				@3 {
+					alias_name = "interrupt_cu_bank_03";
+					interrupts = <0x0c 0x0c>;
+				};
+
+				@4 {
+					alias_name = "interrupt_m2m_00";
+					interrupts = <0x0d 0x0d>;
+				};
+
+				@5 {
+					alias_name = "interrupt_mailbox_mgmt_to_user_00";
+					interrupts = <0x08 0x08>;
+				};
+			};
+		};
+	};
+
+	partition_info {
+		__INFO = "{\"installation\":{\"installed_package_dir\":\"\\/opt\\/xilinx\\/firmware\\/u50\\/gen3x16-xdma\\/base\",\"installed_package_name\":\"xilinx-u50-gen3x16-xdma-base\",\"installed_package_release\":\"3174867\",\"installed_package_version\":\"4\"},\"partition_card\":\"u50\",\"partition_family\":\"gen3x16-xdma\",\"partition_features\":{\"pcie\":{\"device_ids\":{\"5020\":{\"role\":\"management_pf\"},\"5021\":{\"role\":\"user_pf\"}},\"extended_capabilities\":\"enabled\",\"max_link_speed\":\"gen3x16\",\"subsystem_id\":\"000e\",\"vendor_id\":\"10ee\"}},\"partition_identifiers\":{\"interface_uuids\":{\"0c5b3afda8912710b044d939384efe67\":{\"type\":\"exposed\"}},\"logic_uuid\":\"50d6e8557f18deb41acd31eb231faa9c\"},\"partition_name\":\"base\",\"partition_type\":\"base\",\"partition_vendor\":\"xilinx\"}\n";
+	};
+};
