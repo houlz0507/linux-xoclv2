@@ -41,10 +41,8 @@ static void xroot_cleanup_group(struct xroot_group *grp)
 {
 	if (grp->grp_dev)
 		xrt_device_unregister(grp->grp_dev);
-	if (grp->chgset_applied) {
-		pr_info("revert change set\n");
+	if (grp->chgset_applied)
 		of_changeset_revert(&grp->chgset);
-	}
 	of_changeset_destroy(&grp->chgset);
 
 	kfree(grp->dn_mem);
@@ -118,6 +116,11 @@ int xroot_create_group(void *root, const char *name, void *dtb)
 	grp->grp_dev = xrt_device_register(xr->dev, grp_dn, NULL, 0, NULL, 0);
 	if (!grp->grp_dev)
 		goto failed;
+
+	if (device_attach(&grp->grp_dev->dev) != 1) {
+		xroot_err(xr, "failed to attach");
+		goto failed;
+	}
 
 	list_add(&grp->node, &xr->groups);
 
