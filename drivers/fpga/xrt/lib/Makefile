@@ -13,6 +13,7 @@ xrt-lib-objs :=			\
 	lib-drv.o		\
 	xroot.o			\
 	group.o			\
+	xclbin.o		\
 	xrt-bus.dtb.o
 
 ccflags-y := -I$(FULL_XRT_PATH)/include
