@@ -75,6 +75,7 @@ static int xmgmt_config_pci(struct xmgmt *xm)
 static int xmgmt_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	extern uint8_t __dtb_dt_test_begin[];
+	struct xroot_info xr_info = { 0 };
 	struct device *dev = &pdev->dev;
 	struct xmgmt *xm; 
 	int ret;
@@ -89,7 +90,10 @@ static int xmgmt_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (ret)
 		goto failed;
 
-	ret = xroot_probe(&pdev->dev, &xm->root);
+	xr_info.num_res = PCI_NUM_RESOURCES;
+	xr_info.res = pdev->resource;
+	xr_info.name = pci_name(pdev);
+	ret = xroot_probe(&pdev->dev, &xr_info, &xm->root);
 	if (ret)
 		goto failed;
 

@@ -28,11 +28,13 @@ struct xroot_group {
 	struct of_changeset chgset;
 	bool chgset_applied;
 	void *dn_mem;
+	char *name;
 };
 
 struct xroot {
 	struct device *dev;
 	struct list_head groups;
+	struct xroot_info info;
 };
 
 #define XRT_GRP_NAME(grp)	((grp)->grp_dev->dev.of_node->full_name)
@@ -46,6 +48,7 @@ static void xroot_cleanup_group(struct xroot_group *grp)
 	of_changeset_destroy(&grp->chgset);
 
 	kfree(grp->dn_mem);
+	kfree(grp->name);
 }
 
 void xroot_destroy_group(void *root, const char *name)
@@ -74,7 +77,7 @@ int xroot_create_group(void *root, const char *name, void *dtb)
 	struct device_node *dn, *bus, *grp_dn;
 	struct xroot *xr = root;
 	struct xroot_group *grp;
-	int ret;
+	int ret, len;
 
 	grp = kzalloc(sizeof(*grp), GFP_KERNEL);
 	if (!grp)
@@ -87,13 +90,22 @@ int xroot_create_group(void *root, const char *name, void *dtb)
 	}
 	of_changeset_init(&grp->chgset);
 
+	len = strlen(name) + strlen(xr->info.name) + 2;
+	grp->name = kzalloc(len, GFP_KERNEL);
+	if (!grp->name) {
+		ret = -ENOMEM;
+		goto failed;
+	}
+	snprintf(grp->name, len, "%s.%s", name, xr->info.name);
+
 	grp->dn_mem = of_fdt_unflatten_tree(dtb, NULL, &grp_dn);
 	if (!grp->dn_mem) {
 		ret = -EINVAL;
 		goto failed;
 	}
 
-	grp_dn->full_name = name;
+	of_node_get(grp_dn);
+	grp_dn->full_name = grp->name;
 	grp_dn->parent = bus;
 	for (dn = grp_dn; dn; dn = of_find_all_nodes(dn))
 		of_changeset_attach_node(&grp->chgset, dn);
@@ -114,10 +126,13 @@ int xroot_create_group(void *root, const char *name, void *dtb)
 	bus = NULL;
 
 	grp->grp_dev = xrt_device_register(xr->dev, grp_dn, NULL, 0, NULL, 0);
-	if (!grp->grp_dev)
+	if (!grp->grp_dev) {
+		ret = -EFAULT;
 		goto failed;
+	}
 
 	if (device_attach(&grp->grp_dev->dev) != 1) {
+		ret = -EFAULT;
 		xroot_err(xr, "failed to attach");
 		goto failed;
 	}
@@ -134,7 +149,7 @@ failed:
 }
 EXPORT_SYMBOL_GPL(xroot_create_group);
 
-int xroot_probe(struct device *dev, void **root)
+int xroot_probe(struct device *dev, struct xroot_info *info, void **root)
 {
 	struct xroot *xr = NULL;
 
@@ -146,6 +161,7 @@ int xroot_probe(struct device *dev, void **root)
 
 	xr->dev = dev;
 	INIT_LIST_HEAD(&xr->groups);
+	memcpy(&xr->info, info, sizeof(*info));
 
 	*root = xr;
 	return 0;

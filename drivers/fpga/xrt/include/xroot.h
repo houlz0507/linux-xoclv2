@@ -9,7 +9,13 @@
 #ifndef _XRT_ROOT_H_
 #define _XRT_ROOT_H_
 
-int xroot_probe(struct device *dev, void **root);
+struct xroot_info {
+	struct resource *res;
+	int num_res;
+	const char *name;
+};
+
+int xroot_probe(struct device *dev, struct xroot_info *info, void **root);
 void xroot_remove(void *root);
 
 int xroot_create_group(void *xr, const char *name, void *dtb);
