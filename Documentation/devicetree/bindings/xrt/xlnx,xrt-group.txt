@@ -1,0 +1,38 @@
+* Xilinx XRT group driver for Alveo platforms
+
+Required properties:
+- compatible: Should be "xlnx,xrt-group".
+
+Required subnodes:
+- addressable_endpoints: Contains hardware endpoints of the Alveo platform partition.
+
+Optional Properties:
+- logic_uuid: Unique ID of the FPGA partition.
+
+Optional subnodes:
+- interfaces: Contains uniques IDs of the Alveo platoform partition.
+- partition_info: Contains description of the Alveo platoform partition.
+
+Example:
+
+	base-group {
+		compatible = "xlnx,xrt-group"
+		logic_uuid = "1234567890abcdef1234567890abcdef";
+		addressable_endpoints {
+			ep_fpga_configuration_00 {
+				reg = <0x1e88000 0x8000>;
+				pcie_physical_function = <0x00>;
+				compatible = "xilinx.com,reg_abs-axi_hwicap-1.0\0axi_hwicap";
+				pcie_bar_mapping = <0x00>;
+				interrupt_alias = "interrupt_fpga_configuration_00";
+			};
+		};
+		interfaces {
+			@0 {
+				interface_uuid = "0c5b3afda8912710b044d939384efe67";
+			};
+		};
+		partition_info {
+			__INFO = "information";
+		};
+	};
