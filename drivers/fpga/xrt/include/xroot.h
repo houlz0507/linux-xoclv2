@@ -1,0 +1,25 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright (C) 2020-2021 Xilinx, Inc.
+ *
+ * Authors:
+ *	Cheng Zhen <maxz@xilinx.com>
+ *	Lizhi Hou <lizhih@xilinx.com>
+ */
+
+#ifndef _XRT_ROOT_H_
+#define _XRT_ROOT_H_
+
+struct xroot_info {
+	struct resource *res;
+	int num_res;
+	const char *name;
+};
+
+int xroot_probe(struct device *dev, struct xroot_info *info, void **root);
+void xroot_remove(void *root);
+
+int xroot_create_group(void *xr, const char *name, void *dtb);
+void xroot_destroy_group(void *xr, const char *name);
+
+#endif	/* _XRT_ROOT_H_ */
