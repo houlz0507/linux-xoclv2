@@ -21,23 +21,30 @@
 #define xroot_info(xr, fmt, args...) dev_info((xr)->dev, "%s: " fmt, __func__, ##args)
 #define xroot_dbg(xr, fmt, args...) dev_dbg((xr)->dev, "%s: " fmt, __func__, ##args)
 
+struct xroot {
+	struct device *dev;
+	struct list_head groups;
+	u32 addr;
+	struct xroot_range *ranges;
+	int num_range;
+	struct ida grp_ida;
+};
+
 struct xroot_group {
 	struct list_head node;
+	struct xroot *xr;
 	struct xrt_device *grp_dev;
 	struct property compatible;
+	struct property ranges;
 	struct of_changeset chgset;
 	bool chgset_applied;
 	void *dn_mem;
 	char *name;
+	int id;
 };
 
-struct xroot {
-	struct device *dev;
-	struct list_head groups;
-	struct xroot_info info;
-};
-
-#define XRT_GRP_NAME(grp)	((grp)->grp_dev->dev.of_node->full_name)
+#define XRT_GROUP	"xrt-group"
+#define MAX_GRP_NAME_LEN	64
 
 static void xroot_cleanup_group(struct xroot_group *grp)
 {
@@ -47,19 +54,19 @@ static void xroot_cleanup_group(struct xroot_group *grp)
 		of_changeset_revert(&grp->chgset);
 	of_changeset_destroy(&grp->chgset);
 
+	if (grp->id >= 0)
+		ida_free(&grp->xr->grp_ida, grp->id);
 	kfree(grp->dn_mem);
 	kfree(grp->name);
 }
 
-void xroot_destroy_group(void *root, const char *name)
+void xroot_destroy_group(void *root, u32 grp_id)
 {
 	struct xroot *xr = root;
 	struct xroot_group *grp;
-	const char *grp_name;
 
 	list_for_each_entry(grp, &xr->groups, node) {
-		grp_name = XRT_GRP_NAME(grp);
-		if (!strncmp(grp_name, name, strlen(grp_name) + 1))
+		if (grp->id == grp_id)
 			break;
 	}
 	if (list_entry_is_head(grp, &xr->groups, node))
@@ -72,12 +79,19 @@ void xroot_destroy_group(void *root, const char *name)
 }
 EXPORT_SYMBOL_GPL(xroot_destroy_group);
 
-int xroot_create_group(void *root, const char *name, void *dtb)
+/*
+ * Create XRT group device.
+ *
+ * Unflatten the device tree blob attached to the group and
+ * overlay the device nodes under /xrt-bus. Then create group device
+ * and link it to device node.
+ */
+int xroot_create_group(void *root, void *dtb)
 {
 	struct device_node *dn, *bus, *grp_dn;
 	struct xroot *xr = root;
 	struct xroot_group *grp;
-	int ret, len;
+	int ret;
 
 	grp = kzalloc(sizeof(*grp), GFP_KERNEL);
 	if (!grp)
@@ -90,13 +104,18 @@ int xroot_create_group(void *root, const char *name, void *dtb)
 	}
 	of_changeset_init(&grp->chgset);
 
-	len = strlen(name) + strlen(xr->info.name) + 2;
-	grp->name = kzalloc(len, GFP_KERNEL);
+	grp->id = ida_alloc(&xr->grp_ida, GFP_KERNEL);
+	if (grp->id < 0) {
+		ret = -ENOENT;
+		goto failed;
+	}
+
+	grp->name = kzalloc(MAX_GRP_NAME_LEN, GFP_KERNEL);
 	if (!grp->name) {
 		ret = -ENOMEM;
 		goto failed;
 	}
-	snprintf(grp->name, len, "%s.%s", name, xr->info.name);
+	snprintf(grp->name, MAX_GRP_NAME_LEN, "%s@%x,%x", XRT_GROUP, xr->addr, grp->id);
 
 	grp->dn_mem = of_fdt_unflatten_tree(dtb, NULL, &grp_dn);
 	if (!grp->dn_mem) {
@@ -114,6 +133,13 @@ int xroot_create_group(void *root, const char *name, void *dtb)
 	grp->compatible.value = "xrt-group";
 	grp->compatible.length = strlen(grp->compatible.value) + 1;
 	ret = of_changeset_add_property(&grp->chgset, grp_dn, &grp->compatible);
+	if (ret)
+		goto failed;
+
+	grp->ranges.name = "ranges";
+	grp->ranges.length = xr->num_range * sizeof(*xr->ranges) ;
+	grp->ranges.value = xr->ranges;
+	ret = of_changeset_add_property(&grp->chgset, grp_dn, &grp->ranges);
 	if (ret)
 		goto failed;
 
@@ -137,9 +163,10 @@ int xroot_create_group(void *root, const char *name, void *dtb)
 		goto failed;
 	}
 
+	grp->xr = xr;
 	list_add(&grp->node, &xr->groups);
 
-	return 0;
+	return grp->id;
 
 failed:
 	if (bus)
@@ -161,7 +188,15 @@ int xroot_probe(struct device *dev, struct xroot_info *info, void **root)
 
 	xr->dev = dev;
 	INIT_LIST_HEAD(&xr->groups);
-	memcpy(&xr->info, info, sizeof(*info));
+
+	xr->addr = info->addr;
+	xr->num_range = info->num_range;
+	xr->ranges = devm_kzalloc(dev, sizeof(*info->ranges) * info->num_range, GFP_KERNEL);
+	if (!xr->ranges)
+		return -ENOMEM;
+
+	memcpy(&xr->ranges, info->ranges, sizeof(*info->ranges) * info->num_range);
+	ida_init(&xr->grp_ida);
 
 	*root = xr;
 	return 0;
@@ -181,4 +216,3 @@ void xroot_remove(void *root)
 	}
 }
 EXPORT_SYMBOL_GPL(xroot_remove);
-

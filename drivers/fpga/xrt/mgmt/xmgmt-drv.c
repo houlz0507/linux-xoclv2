@@ -31,7 +31,7 @@
 #define XMGMT_DEV_ID(_pcidev)			\
 	({ typeof(_pcidev) (pcidev) = (_pcidev);	\
 	((pci_domain_nr((pcidev)->bus) << 16) |	\
-	PCI_DEVID((pcidev)->bus->number, 0)); })
+	PCI_DEVID((pcidev)->bus->number, (pcidev)->devfn)); })
 
 #define XRT_MAX_READRQ		512
 
@@ -74,11 +74,12 @@ static int xmgmt_config_pci(struct xmgmt *xm)
 
 static int xmgmt_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
+	struct xroot_range ranges[PCI_NUM_RESOURCES];
 	extern uint8_t __dtb_dt_test_begin[];
 	struct xroot_info xr_info = { 0 };
 	struct device *dev = &pdev->dev;
+	int ret, i, idx = 0;
 	struct xmgmt *xm; 
-	int ret;
 
 	xm = devm_kzalloc(dev, sizeof(*xm), GFP_KERNEL);
 	if (!xm)
@@ -90,14 +91,23 @@ static int xmgmt_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (ret)
 		goto failed;
 
-	xr_info.num_res = PCI_NUM_RESOURCES;
-	xr_info.res = pdev->resource;
-	xr_info.name = pci_name(pdev);
+	for (i = 0; i < PCI_NUM_RESOURCES; i++) {
+		if (pci_resource_len(pdev, i) > 0) {
+			ranges[idx].child_addr = cpu_to_be64(i);
+			ranges[idx].parent_addr = cpu_to_be64(pci_resource_start(pdev, i));
+			ranges[idx].child_size = cpu_to_be64(pci_resource_len(pdev, i));
+			idx++;
+		}
+	}
+	xr_info.num_range = idx;
+	xr_info.ranges = ranges;
+	xr_info.addr = XMGMT_DEV_ID(pdev);
+pr_info("ADDRESS %x\n", xr_info.addr);
 	ret = xroot_probe(&pdev->dev, &xr_info, &xm->root);
 	if (ret)
 		goto failed;
 
-	ret = xroot_create_group(xm->root,"base-group", __dtb_dt_test_begin);
+	ret = xroot_create_group(xm->root, __dtb_dt_test_begin);
 	if (ret) {
 		xmgmt_err(xm, "failed to create root group: %d", ret); 
 		goto failed;
