@@ -466,6 +466,38 @@ void *of_fdt_unflatten_tree(const unsigned long *blob,
 }
 EXPORT_SYMBOL_GPL(of_fdt_unflatten_tree);
 
+static int __init of_fdt_root_init(void)
+{
+	struct device_node *np;
+	void *fdt_data_align;
+	void *fdt_data;
+	int size;
+
+	if (of_root)
+		return 0;
+
+	size = __dtb_fdt_default_end - __dtb_fdt_default_begin;
+	fdt_data = kmalloc(size + FDT_ALIGN_SIZE, GFP_KERNEL);
+	if (!fdt_data)
+		return -ENOMEM;
+
+	fdt_data_align = PTR_ALIGN(fdt_data, FDT_ALIGN_SIZE);
+	memcpy(fdt_data_align, __dtb_fdt_default_begin, size);
+
+	if (!of_fdt_unflatten_tree(fdt_data_align, NULL, &of_root)) {
+		pr_warn("%s: unflatten default tree failed\n", __func__);
+		kfree(fdt_data);
+		return -ENODATA;
+	}
+	kfree(fdt_data);
+
+	for_each_of_allnodes(np)
+		__of_attach_node_sysfs(np);
+
+	return 0;
+}
+late_initcall(of_fdt_root_init);
+
 /* Everything below here references initial_boot_params directly. */
 int __initdata dt_root_addr_cells;
 int __initdata dt_root_size_cells;
