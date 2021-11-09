@@ -102,7 +102,6 @@ static int xmgmt_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	xr_info.num_range = idx;
 	xr_info.ranges = ranges;
 	xr_info.addr = XMGMT_DEV_ID(pdev);
-pr_info("ADDRESS %x\n", xr_info.addr);
 	ret = xroot_probe(&pdev->dev, &xr_info, &xm->root);
 	if (ret)
 		goto failed;
