@@ -72,6 +72,7 @@ Driver Object Model
 ===================
 
 The driver object model looks like the following::
+
                               +-----------+
                               |  of root  |
                               +-----+-----+
