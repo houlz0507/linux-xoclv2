@@ -169,29 +169,6 @@ following::
  +-------------+ +-------------+ +-------------+
 
 
-root
-----
-
-The root driver is a PCIe device driver attached to MPF. It's part of the
-infrastructure of the MPF driver and resides in xrt-mgmt.ko. This driver
-
-* manages one or more group drivers
-* provides access to functionalities that requires pci_dev, such as PCIE config
-  space access, to other xleaf drivers through root calls
-* facilities inter xleaf driver calls for other xleaf drivers
-* facilities event callbacks for other xleaf drivers
-
-When the root driver starts, it will explicitly create an initial group instance,
-which contains xleaf drivers that will trigger the creation of other group
-instances. The root driver will wait for all group and xleaf drivers to be
-created before it returns from its probe routine and claim success of the
-initialization of the entire xrt-mgmt driver. If any xleaf fails to initialize
-the xrt-mgmt driver will still come online but with limited functionality.
-
-.. note::
-   See code in ``lib/xroot.c`` and ``mgmt/root.c``
-
-
 group
 -----
 
