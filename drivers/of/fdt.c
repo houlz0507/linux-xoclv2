@@ -481,6 +481,26 @@ void *of_fdt_unflatten_tree(const unsigned long *blob,
 }
 EXPORT_SYMBOL_GPL(of_fdt_unflatten_tree);
 
+static int __init of_fdt_root_init(void)
+{
+	struct device_node *np;
+
+	if (of_root)
+		return 0;
+
+	if (!of_fdt_unflatten_tree((const unsigned long *)__dtb_fdt_default_begin,
+				   NULL, &of_root)) {
+		pr_warn("%s: unflatten default tree failed\n", __func__);
+		return -ENODATA;
+	}
+
+	for_each_of_allnodes(np)
+		__of_attach_node_sysfs(np);
+
+	return 0;
+}
+late_initcall(of_fdt_root_init);
+
 /* Everything below here references initial_boot_params directly. */
 int __initdata dt_root_addr_cells;
 int __initdata dt_root_size_cells;
