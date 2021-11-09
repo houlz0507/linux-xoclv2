@@ -85,7 +85,7 @@ static int xrt_grp_leaf_call(struct xrt_device *xdev, u32 cmd, void *arg)
 }
 
 static const struct of_device_id group_match[] = {
-	{ .compatible = "xrt-group" },
+	{ .compatible = "xlnx,xrt-group" },
 	{ }
 };
 

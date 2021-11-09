@@ -21,6 +21,28 @@
 #define xroot_info(xr, fmt, args...) dev_info((xr)->dev, "%s: " fmt, __func__, ##args)
 #define xroot_dbg(xr, fmt, args...) dev_dbg((xr)->dev, "%s: " fmt, __func__, ##args)
 
+static char grp_compat_str[] = "xlnx,xrt-group";
+static __be32 grp_addr_cells = cpu_to_be32(1);
+static __be32 grp_size_cells = cpu_to_be32(1);
+
+static struct property xrt_grp_static_prop[] = {
+	{
+		.name = "compatible",
+		.value = grp_compat_str,
+		.length = sizeof(grp_compat_str),
+	},
+	{
+		.name = "#address-cells",
+		.value = &grp_addr_cells,
+		.length = sizeof(grp_addr_cells),
+	},
+	{
+		.name = "#size-cells",
+		.value = &grp_size_cells,
+		.length = sizeof(grp_size_cells),
+	},
+};
+
 struct xroot {
 	struct device *dev;
 	struct list_head groups;
@@ -34,7 +56,6 @@ struct xroot_group {
 	struct list_head node;
 	struct xroot *xr;
 	struct xrt_device *grp_dev;
-	struct property compatible;
 	struct property ranges;
 	struct of_changeset chgset;
 	bool chgset_applied;
@@ -91,7 +112,7 @@ int xroot_create_group(void *root, void *dtb)
 	struct device_node *dn, *bus, *grp_dn;
 	struct xroot *xr = root;
 	struct xroot_group *grp;
-	int ret;
+	int ret, i;
 
 	grp = kzalloc(sizeof(*grp), GFP_KERNEL);
 	if (!grp)
@@ -102,13 +123,14 @@ int xroot_create_group(void *root, void *dtb)
 		kfree(grp);
 		return -EINVAL;
 	}
+	grp->xr = xr;
 	of_changeset_init(&grp->chgset);
 
-	grp->id = ida_alloc(&xr->grp_ida, GFP_KERNEL);
-	if (grp->id < 0) {
-		ret = -ENOENT;
+	ret = ida_alloc(&xr->grp_ida, GFP_KERNEL);
+	if (ret < 0)
 		goto failed;
-	}
+
+	grp->id = ret;
 
 	grp->name = kzalloc(MAX_GRP_NAME_LEN, GFP_KERNEL);
 	if (!grp->name) {
@@ -129,19 +151,18 @@ int xroot_create_group(void *root, void *dtb)
 	for (dn = grp_dn; dn; dn = of_find_all_nodes(dn))
 		of_changeset_attach_node(&grp->chgset, dn);
 
-	grp->compatible.name = "compatible";
-	grp->compatible.value = "xrt-group";
-	grp->compatible.length = strlen(grp->compatible.value) + 1;
-	ret = of_changeset_add_property(&grp->chgset, grp_dn, &grp->compatible);
-	if (ret)
-		goto failed;
-
 	grp->ranges.name = "ranges";
-	grp->ranges.length = xr->num_range * sizeof(*xr->ranges) ;
+	grp->ranges.length = xr->num_range * sizeof(*xr->ranges);
 	grp->ranges.value = xr->ranges;
 	ret = of_changeset_add_property(&grp->chgset, grp_dn, &grp->ranges);
 	if (ret)
 		goto failed;
+
+	for (i = 0; i < ARRAY_SIZE(xrt_grp_static_prop); i++) {
+		ret = of_changeset_add_property(&grp->chgset, grp_dn, &xrt_grp_static_prop[i]);
+		if (ret)
+			goto failed;
+	}
 
 	ret = of_changeset_apply(&grp->chgset);
 	if (ret)
@@ -163,7 +184,6 @@ int xroot_create_group(void *root, void *dtb)
 		goto failed;
 	}
 
-	grp->xr = xr;
 	list_add(&grp->node, &xr->groups);
 
 	return grp->id;

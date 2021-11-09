@@ -1,0 +1,29 @@
+* Xilinx XRT group driver for Alveo platforms
+
+Required properties:
+- compatible: xlnx,xrt-group
+- #address-cells: should be 2.
+- #size-cells: should be 2.
+
+Required subnodes:
+- addressable_endpoints: Contains hardware endpoints of the Alveo platform partition.
+
+Optional properties:
+- ranges: XRT group address translation.
+  <endpoint BAR index> <physical address> <size>
+
+Example:
+
+	group@48,0 {
+		compatible = "xlnx,xrt-group";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges = <0 0xe0000000 0x2000000
+			  2 0xe4200000 0x40000>;
+                addressable_endpoints {
+                        ep_fpga_configuration_00@0 {
+                                reg = <0x1e88000 0x8000>;
+                                compatible = "xilinx.com,reg_abs-axi_hwicap-1.0\0axi_hwicap";
+                        };
+                };
+        };
