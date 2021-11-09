@@ -2,7 +2,7 @@
 
 Required properties:
 - compatible: xlnx,xrt-group
-- #address-cells: should be 2.
+- #address-cells: should be 3.
 - #size-cells: should be 2.
 
 Required subnodes:
@@ -16,13 +16,13 @@ Example:
 
 	group@48,0 {
 		compatible = "xlnx,xrt-group";
-		#address-cells = <2>;
+		#address-cells = <3>;
 		#size-cells = <2>;
-		ranges = <0 0xe0000000 0x2000000
-			  2 0xe4200000 0x40000>;
+		ranges = <0 0 0 0 0xe0000000 0 0x2000000
+			  2 0 0 0 0xe4200000 0 0x40000>;
                 addressable_endpoints {
-                        ep_fpga_configuration_00@0 {
-                                reg = <0x1e88000 0x8000>;
+                        ep_fpga_configuration_00@0,0,1e88000 {
+                                reg = <0 0 0x1e88000 0 0x8000>;
                                 compatible = "xilinx.com,reg_abs-axi_hwicap-1.0\0axi_hwicap";
                         };
                 };

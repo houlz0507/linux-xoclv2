@@ -30,15 +30,15 @@ Driver Modules
 xrt-lib.ko
 ----------
 
-xrt-lib is the repository of xrt drivers in FPGA subsystem and pure software
-modules that can potentially be shared between xrt-mgmt and xrt-user. All these
-drivers are structured as **xrt_driver** and are instantiated by xrt-mgmt (or
-xrt-user under development) based on the metadata associated with the hardware.
-The metadata is in the form of a device tree as mentioned before.
+xrt-lib is the repository of xrt drivers and pure software modules that can
+potentially be shared between xrt-mgmt and xrt-user. All these drivers are
+structured as **xrt_driver** and are instantiated by xrt-mgmt (or xrt-user under
+development) based on the metadata associated with the hardware.  The metadata
+is in the form of a device tree as mentioned before.
 
 xrt-lib relies on OF kernel APIs to unflatten the metadata and overlay the
-unflattened device tree nodes and properties to system device tree. In xrt-lib
-module routine, "/xrt-bus" is created in system device tree, all XRT device
+unflattened device tree nodes to system device tree. In xrt-lib module initialization
+routine, "/xrt-bus" is created in system device tree, all XRT device
 tree nodes and properties will be under "/xrt-bus".
 
 The xrt-lib infrastructure provides hooks to xrt_drivers for device node
@@ -51,16 +51,15 @@ xrt-mgmt.ko
 ------------
 
 The xrt-mgmt driver is a PCIe device driver driving MPF found on Xilinx's Alveo
-PCIe device. It consists of one *root* driver, one or more *group* drivers
-and one or more *xleaf* drivers. The group and xleaf drivers are instantiations
-of the xrt_driver but are called group and xleaf to symbolize the logical operation
-performed by them.
+PCIe device. It creates one or more *group* device and and one or more *xleaf* device.
+The group and xleaf drivers are in xrt-lib and instantiations of the xrt_driver but
+are called group and xleaf to symbolize the logical operation performed by them.
 
-The root driver manages the life cycle of multiple group drivers, which, in turn,
-manages multiple xleaf drivers. This flexibility allows xrt-mgmt.ko and xrt-lib.ko
-to support various HW subsystems exposed by different Alveo shells. The differences
-among these Alveo shells is handled in xleaf drivers. The root and group
-drivers are part of the infrastructure which provide common services to xleaf
+The xrt-mgmt driver uses xrt-lib APIs to manages the life cycle of multiple group
+drivers, which, in turn, manages multiple xleaf drivers. This flexibility allows
+xrt-mgmt.ko and xrt-lib.ko to support various HW subsystems exposed by different
+Alveo shells. The differences among these Alveo shells is handled in xleaf drivers.
+The group driver is part of the infrastructure which provides common services to xleaf
 drivers found on various Alveo shells. See :ref:`alveo_platform_overview`.
 
 The instantiation of specific group driver or xleaf drivers is completely data
@@ -73,10 +72,15 @@ Driver Object Model
 ===================
 
 The driver object model looks like the following::
-
-                    +-----------+
-                    |   xroot   |
-                    +-----+-----+
+                              +-----------+
+                              |  of root  |
+                              +-----+-----+
+                                    |
+                          +---------+---------+
+                          |                   |
+                    +-----------+        +----------+
+                    |  xrt-bus  |        |   ...    |
+                    +-----+-----+        +----------+
                           |
               +-----------+-----------+
               |                       |
@@ -97,7 +101,7 @@ As an example, for Xilinx Alveo U50 before user xclbin download, the tree
 looks like the following::
 
                                 +-----------+
-                                |  xrt-mgmt |
+                                |  xrt-bus  |
                                 +-----+-----+
                                       |
             +-------------------------+--------------------+
@@ -125,7 +129,7 @@ After a xclbin is downloaded, group3 will be added and the tree looks like the
 following::
 
                                 +-----------+
-                                |  xrt-mgmt |
+                                |  xrt-bus  |
                                 +-----+-----+
                                       |
             +-------------------------+--------------------+-----------------+

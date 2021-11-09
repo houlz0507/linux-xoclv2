@@ -10,9 +10,9 @@
 #define _XRT_ROOT_H_
 
 struct xroot_range {
-        __be64 child_addr;
-        __be64 parent_addr;
-        __be64 child_size;
+        __be32 child_addr[3];
+        __be32 parent_addr[2];
+        __be32 child_size[2];
 };
 
 struct xroot_info {

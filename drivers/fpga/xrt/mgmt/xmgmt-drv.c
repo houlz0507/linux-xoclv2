@@ -80,6 +80,7 @@ static int xmgmt_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	struct device *dev = &pdev->dev;
 	int ret, i, idx = 0;
 	struct xmgmt *xm; 
+	__be64 tmp;
 
 	xm = devm_kzalloc(dev, sizeof(*xm), GFP_KERNEL);
 	if (!xm)
@@ -93,9 +94,11 @@ static int xmgmt_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	for (i = 0; i < PCI_NUM_RESOURCES; i++) {
 		if (pci_resource_len(pdev, i) > 0) {
-			ranges[idx].child_addr = cpu_to_be64(i);
-			ranges[idx].parent_addr = cpu_to_be64(pci_resource_start(pdev, i));
-			ranges[idx].child_size = cpu_to_be64(pci_resource_len(pdev, i));
+			ranges[idx].child_addr[0] = cpu_to_be32(i);
+			tmp = cpu_to_be64(pci_resource_start(pdev, i));
+			memcpy(ranges[idx].parent_addr, &tmp, sizeof(tmp));
+			tmp = cpu_to_be64(pci_resource_len(pdev, i));
+			memcpy(ranges[idx].child_size, &tmp, sizeof(tmp));
 			idx++;
 		}
 	}
