@@ -455,12 +455,27 @@ void *of_fdt_unflatten_tree(const unsigned long *blob,
 			    struct device_node *dad,
 			    struct device_node **mynodes)
 {
+	void *new_fdt = NULL, *fdt_align;
 	void *mem;
 
+	if (fdt_check_header(blob)) {
+		pr_err("Invalid fdt blob\n");
+		return NULL;
+	}
+	fdt_align = (void *)PTR_ALIGN(blob, FDT_ALIGN_SIZE);
+	if (fdt_align != blob) {
+		new_fdt = kmalloc(fdt_totalsize(blob) + FDT_ALIGN_SIZE, GFP_KERNEL);
+		if (!new_fdt)
+			return NULL;
+		fdt_align = PTR_ALIGN(new_fdt, FDT_ALIGN_SIZE);
+	}
+
 	mutex_lock(&of_fdt_unflatten_mutex);
-	mem = __unflatten_device_tree(blob, dad, mynodes, &kernel_tree_alloc,
+	mem = __unflatten_device_tree(fdt_align, dad, mynodes, &kernel_tree_alloc,
 				      true);
 	mutex_unlock(&of_fdt_unflatten_mutex);
+
+	kfree(new_fdt);
 
 	return mem;
 }
