@@ -14,11 +14,11 @@ XRTV2 drivers are second generation `XRT <https://github.com/Xilinx/XRT>`_
 drivers which support `Alveo <https://www.xilinx.com/products/boards-and-kits/alveo.html>`_
 PCIe platforms from Xilinx.
 
-XRTV2 drivers support *subsystem* style data driven platforms where driver's
-configuration and behavior are determined by metadata provided by the platform
-(in *device tree* format). Primary management physical function (MPF) driver
-is called **xrt-mgmt**. Primary user physical function (UPF) driver is called
-**xrt-user** and is under development. xrt_driver common APIs are packaged
+XRTV2 drivers support *subsystem* style data driven platforms where the driver's
+configuration and behavior are determined by the metadata provided by the
+platform (in *device tree* format). Primary management physical function (MPF)
+driver is called **xrt-mgmt**. Primary user physical function (UPF) driver is
+called **xrt-user** and is under development. xrt_driver common APIs are packaged
 into a library module called **xrt-lib**, which is shared by **xrt-mgmt** and
 **xrt-user** (under development).
 
@@ -31,31 +31,31 @@ xrt-lib.ko
 xrt-lib is the repository of functions that can potentially be shared between
 xrt-mgmt and xrt-user.
 
-Alveo platform consists multiple FPGA patitions. Each patition has one or more
-hardware endpoints and metadata associated with it to describe the endpoints.
-This metadata is flat device tree format. xrt-lib relies on OF kernel APIs to
-unflatten the metadata and overlay the unflattened device tree nodes to system
-base device tree.
+Alveo platform consists of one or more FPGA partitions. Each partition has multiple
+peripherals (also referred to as endpoints) and metadata to describe the
+endpoints. This metadata is in flat device tree format. xrt-lib relies on OF
+kernel APIs to un-flatten the metadata and overlay the un-flattened device tree
+nodes to the system base device tree.
 
 xrt-mgmt.ko
 ------------
 
 The xrt-mgmt driver is a PCIe device driver driving MPF found on Xilinx's Alveo
-PCIe device. It reads Alveo Plaform partition metadata and creates one or more
-partitions based on the hardware design. xrt-lib is called to overlay the endpoint
-nodes to system base tree. Eventually, platform devices are generated for each
-endpoint defined in partition metadata.
+PCIe device. It reads Alveo platform partition metadata and creates one or more
+partitions based on the hardware design. xrt-lib APIs are called to overlay the
+endpoint nodes to the system base tree. Eventually, platform devices are
+generated for each endpoint defined in the partition metadata.
 
 The xrt-mgmt driver uses xrt-lib APIs to manage the life cycle of partitions,
 which, in turn, manages multiple endpoints (platform devices) generated during
 partition creation. This flexibility allows xrt-mgmt.ko and xrt-lib.ko to support
 various HW subsystems exposed by different Alveo shells. The differences among
-these Alveo shells is handled in endpoint (platform device) drivers.
+these Alveo shells is handled in the endpoint (platform device) drivers.
 See :ref:`alveo_platform_overview`.
 
-The instantiation of specific endpoint drivers is completely data driven based
-on metadata (mostly in device tree format) found through VSEC capability and
-inside the firmware files, such as platform xsabin or user xclbin file.
+The instantiation of a specific endpoint driver is completely data driven based
+on the metadata (in the device tree format). The flattened device tree is stored
+in a xsabin file which is discovered through the PCIe VSEC capability.
 
 
 Driver Object Model
@@ -87,20 +87,20 @@ following::
 partition node
 --------------
 
-The partition node is created and added to system device tree when driver
-creates a new partition. It is compatible with 'simple-bus' which is a
-transparent bus node defined by linux kernel. The partition node is used
-for translating the address of underneath endpoint to CPU address.
+The partition node is created and added to the system device tree when the driver
+creates a new partition. It is compatible with ``simple-bus`` which is a
+transparent bus node defined by Linux kernel. The partition node is used for
+translating the address of underneath endpoint to CPU address.
 
 endpoint node
 -------------
 
-During partition creation, xrt driver unflatten the partition metadata and
-adds all the endpoint nodes under the partition node on system device tree.
-Eventually, all the endpoint nodes will be populated by existing platform
-device and OF infrastrure. This means a platform device will be created
-for each endpoint node. And the platform driver will be bound based on
-'compatible' property defined in endpoint node.
+During the partition creation, xrt driver un-flattens the partition metadata and
+adds all the endpoint nodes under the partition node to the system device tree.
+Eventually, all the endpoint nodes will be populated by the existing platform
+device and OF infrastructure. This means a platform device will be created for
+each endpoint node. The platform driver will be bound based on the ``compatible``
+property defined in the endpoint node.
 
 Alveo Platform Overview
 =======================
