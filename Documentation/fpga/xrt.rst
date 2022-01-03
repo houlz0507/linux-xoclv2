@@ -31,9 +31,9 @@ xrt-lib.ko
 xrt-lib is the repository of functions that can potentially be shared between
 xrt-mgmt and xrt-user.
 
-Alveo platform consists of one or more FPGA partitions. Each partition has multiple
-peripherals (also referred to as endpoints) and metadata to describe the
-endpoints. This metadata is in flat device tree format. xrt-lib relies on OF
+Alveo platform consists of one or more FPGA partitions. Each partition has
+multiple HW peripherals (also referred to as endpoints) and metadata to describe
+the endpoints. This metadata is in flat device tree format. xrt-lib relies on OF
 kernel APIs to un-flatten the metadata and overlay the un-flattened device tree
 nodes to the system base device tree.
 

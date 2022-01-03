@@ -7,20 +7,23 @@ $schema: http://devicetree.org/meta-schemas/core.yaml#
 title: Xilinx Alveo platform partition bindings
 
 description: |
-  Xilinx Alveo platform is PCI device and has one or more partitions. The
+  Xilinx Alveo platform is a PCI device and has one or more partitions. A
   partition is programmed dynamically and contains a set of hardware
-  endpoints. This binding is defined for endpoint address translation.
-  The endpoints are shown on the PCI BARs eventually and the following
-  encoding is used for endpoint address:
+  peripherals also referred to as endpoints which appear on the PCI BARs.
+  This binding is defined for endpoint address translation which uses the
+  the following encoding:
+
     0xIooooooo 0xoooooooo
+
   Where:
+
     I = BAR index
-    oooooo oooooooo = offset
+    oooooo oooooooo = BAR offset
 
   As a PCI device, the Alveo platform is enumerated at runtime. Thus,
   the partition node is created by Alveo device driver. The device driver
-  gets the BAR base address from PCI device and create the 'range' property
-  for address translation.
+  gets the BAR base address of the PCI device and creates the 'range'
+  property for address translation.
 
 allOf:
   - $ref: /schemas/simple-bus.yaml#
@@ -71,4 +74,3 @@ examples:
             };
         };
     };
-
