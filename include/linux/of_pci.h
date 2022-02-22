@@ -38,4 +38,13 @@ of_irq_parse_and_map_pci(const struct pci_dev *dev, u8 slot, u8 pin)
 }
 #endif
 
+#if IS_ENABLED(CONFIG_OF_DYNAMIC) && IS_ENABLED(CONFIG_PCI)
+int devm_of_pci_create_bus_endpoint(struct pci_dev *pdev);
+#else
+static inline devm_of_pci_create_bus_endpoint(struct pci_dev *pdev)
+{
+	return -EINVAL;
+}
+#endif
+
 #endif
