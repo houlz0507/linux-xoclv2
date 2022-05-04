@@ -774,15 +774,11 @@ static void __init of_unittest_property_copy(void)
 
 	new = __of_prop_dup(&p1);
 	unittest(new && propcmp(&p1, new), "empty property didn't copy correctly\n");
-	kfree(new->value);
-	kfree(new->name);
-	kfree(new);
+	of_property_free(new);
 
 	new = __of_prop_dup(&p2);
 	unittest(new && propcmp(&p2, new), "non-empty property didn't copy correctly\n");
-	kfree(new->value);
-	kfree(new->name);
-	kfree(new);
+	of_property_free(new);
 #endif
 }
 
