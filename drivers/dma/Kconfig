@@ -733,6 +733,17 @@ config XILINX_ZYNQMP_DPDMA
 	  driver provides the dmaengine required by the DisplayPort subsystem
 	  display driver.
 
+config XILINX_XDMA
+	tristate "Xilinx DMA/Bridge Subsystem DMA Engine"
+	select DMA_ENGINE
+	select DMA_VIRTUAL_CHANNELS
+	select REGMAP_MMIO
+	help
+	  Enable support for Xilinx DMA/Bridge Subsystem DMA engine. The DMA
+	  provides high performance block data movement between the PCIe
+	  address space and the AXI address space. And there are up to 4 DMA
+	  channels for each direction.
+
 # driver files
 source "drivers/dma/bestcomm/Kconfig"
 
