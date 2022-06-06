@@ -1386,3 +1386,12 @@ late_initcall(of_fdt_raw_init);
 #endif
 
 #endif /* CONFIG_OF_EARLY_FLATTREE */
+
+static int __init of_init(void)
+{
+	pr_info("I AM CALLED\n");
+	WARN_ON(1);
+
+	return 0;
+}
+pure_initcall(of_init);

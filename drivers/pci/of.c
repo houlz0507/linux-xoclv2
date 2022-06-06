@@ -475,6 +475,8 @@ static int of_irq_parse_pci(const struct pci_dev *pdev, struct of_phandle_args *
 		} else {
 			/* We found a P2P bridge, check if it has a node */
 			ppnode = pci_device_to_OF_node(ppdev);
+			if (!of_get_property(ppnode, "#interrupt-cells", NULL))
+				ppnode = NULL;
 		}
 
 		/*
@@ -604,6 +606,89 @@ int devm_of_pci_bridge_init(struct device *dev, struct pci_host_bridge *bridge)
 
 	return pci_parse_request_of_pci_ranges(dev, bridge);
 }
+
+#if IS_ENABLED(CONFIG_OF_DYNAMIC)
+static struct device_node *of_pci_alloc_node(struct pci_dev *pdev)
+{
+	struct device_node *node, *parent;
+	char *full_name, *node_name;
+
+	if (!pdev->bus->self)
+		parent = pdev->bus->dev.of_node;
+	else
+		parent = pdev->bus->self->dev.of_node;
+	if (!parent)
+		return NULL;
+
+	node = kzalloc(sizeof(*node), GFP_KERNEL);
+	if (!node)
+		return NULL;
+
+	node_name = pdev->pcie_cap ? "pcie" : "pci";
+	full_name = kasprintf(GFP_KERNEL, "%s/%s@%x,%x",
+			      parent->full_name, node_name,
+			      PCI_SLOT(pdev->devfn),
+			      PCI_FUNC(pdev->devfn));
+	if (!full_name)
+		return NULL;
+
+	pr_info("ALLOC NODE PATH: %s\n", full_name);
+	node->parent = parent;
+	node->full_name = full_name;
+	node->data = (void *)of_pci_alloc_node;
+	of_node_set_flag(node, OF_DYNAMIC);
+	of_node_set_flag(node, OF_DETACHED);
+	of_node_init(node);
+
+	return node;
+}
+
+void of_pci_remove_node(struct pci_dev *pdev)
+{
+	struct device_node *node = pdev->dev.of_node;
+
+	if (!node || node->data != (void *)of_pci_alloc_node)
+		return;
+
+	of_detach_node(node);
+	node->data = NULL;
+	of_node_put(node);
+	pdev->dev.of_node = NULL;
+}
+
+int of_pci_add_node(struct pci_dev *pdev)
+{
+	struct device_node *node;
+	int ret = 0;
+
+	/* it should not be called for root complex */
+	BUG_ON(!pdev->bus);
+
+	pr_info("CREATE NODE pci%x, %x,%x ....\n", pdev->bus->number, PCI_SLOT(pdev->devfn), PCI_FUNC(pdev->devfn));
+	/* check if there is of_node been created */
+	node = pci_device_to_OF_node(pdev);
+	if (pci_device_to_OF_node(pdev)) {
+		dev_info(&pdev->dev, "of_node exist, skip creation");
+		return -EEXIST;
+	}
+
+	node = of_pci_alloc_node(pdev);
+	if (!node)
+		return -EINVAL;
+
+	ret = of_attach_node(node);
+	if (ret) {
+		of_node_put(node);
+		return ret;
+	}
+
+	if (!(PCI_SLOT(pdev->devfn)== 1 && PCI_FUNC(pdev->devfn) == 4))
+		pdev->dev.of_node = node;
+
+	return 0;
+}
+#endif
+
 
 #endif /* CONFIG_PCI */
 

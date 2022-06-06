@@ -665,6 +665,23 @@ static inline int devm_of_pci_bridge_init(struct device *dev, struct pci_host_br
 
 #endif /* CONFIG_OF */
 
+#ifdef CONFIG_OF_DYNAMIC
+int of_pci_add_node(struct pci_dev *pdev);
+void of_pci_remove_node(struct pci_dev *pdev);
+
+#else
+static inline int
+of_pci_add_node(struct pci_dev *pdev)
+{
+	return -EINVAL;
+}
+static inline void
+of_pci_remove_node(struct pci_dev *pdev);
+{
+	return;
+}
+#endif /* CONFIG_OF_DYNAMIC */
+
 #ifdef CONFIG_PCIEAER
 void pci_no_aer(void);
 void pci_aer_init(struct pci_dev *dev);

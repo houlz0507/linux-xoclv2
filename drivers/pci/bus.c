@@ -317,6 +317,7 @@ void pci_bus_add_device(struct pci_dev *dev)
 	pcibios_bus_add_device(dev);
 	pci_fixup_device(pci_fixup_final, dev);
 	pci_create_sysfs_dev_files(dev);
+	of_pci_add_node(dev);
 	pci_proc_attach_device(dev);
 	pci_bridge_d3_update(dev);
 
