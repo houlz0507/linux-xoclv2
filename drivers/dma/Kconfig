@@ -733,6 +733,19 @@ config XILINX_ZYNQMP_DPDMA
 	  driver provides the dmaengine required by the DisplayPort subsystem
 	  display driver.
 
+config XILINX_XDMA
+	tristate "Xilinx DMA/Bridge Subsystem DMA Engine"
+	select DMA_ENGINE
+	select DMA_VIRTUAL_CHANNELS
+	select REGMAP_MMIO
+	help
+	  Enable support for Xilinx DMA/Bridge Subsystem DMA engine. The DMA
+	  provides high performance block data movement between Host memory
+	  and the DMA subsystem. These direct memory transfers can be both in
+	  the Host to Card (H2C) and Card to Host (C2H) transfers.
+	  The core also provides up to 16 user interrupt wires that generate
+	  interrupts to the host.
+
 # driver files
 source "drivers/dma/bestcomm/Kconfig"
 
