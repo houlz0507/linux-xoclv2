@@ -22064,6 +22064,7 @@ M:	Lizhi Hou <lizhi.hou@amd.com>
 L:	dmaengine@vger.kernel.org
 F:	drivers/dma/xilinx/xdma-regs.h
 F:	drivers/dma/xilinx/xdma.c
+F:	include/linux/dma/xdma.h
 F:	include/linux/platform_data/xdma.h
 
 XILINX ZYNQMP DPDMA DRIVER

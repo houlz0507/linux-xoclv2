@@ -27,6 +27,7 @@ struct dma_slave_map;
  */
 struct xdma_platdata {
 	u32 max_dma_channels;
+	u32 user_irqs;
 	u32 slave_map_cnt;
 	struct dma_slave_map *slave_map;
 };

@@ -15,6 +15,9 @@
  */
 #define XDMA_MAX_CHANNELS	4
 
+/* maximum number of user IRQs */
+#define XDMA_MAX_USER_IRQS	16
+
 /* macros to get higher and lower 32-bit address */
 #define XDMA_ADDR_H(addr)	((u64)(addr) >> 32)
 #define XDMA_ADDR_L(addr)	((u64)(addr) & 0xffffffffUL)

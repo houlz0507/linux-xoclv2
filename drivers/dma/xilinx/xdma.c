@@ -90,6 +90,23 @@ struct xdma_request {
 	u32				nents;
 };
 
+/**
+ * struct xdma_user_irq - User IRQ structure
+ * @xdev_hdl: DMA device structure pointer
+ * @handler: Interrupt handler routine
+ * @arg: Argument of interrupt handler
+ * @irq_lock: Spinlock for user IRQ structure
+ * @irq: IRQ number assigned
+ */
+struct xdma_user_irq {
+	void				*xdev_hdl;
+	irq_handler_t			handler;
+	void				*arg;
+	spinlock_t			irq_lock; /* user irq lock */
+	u32				irq;
+	struct tasklet_struct		tasklet;
+};
+
 enum xdma_dev_status {
 	XDMA_DEV_STATUS_INIT,
 	XDMA_DEV_STATUS_REG_DMA,
@@ -107,6 +124,7 @@ enum xdma_dev_status {
  * @c2h_chan_num: Number of C2H channels
  * @irq_start: Start IRQ assigned to device
  * @irq_num: Number of IRQ assigned to device
+ * @user_irq: User IRQ structures
  * @status: Initialization status
  */
 struct xdma_device {
@@ -119,6 +137,7 @@ struct xdma_device {
 	u32			c2h_chan_num;
 	u32			irq_start;
 	u32			irq_num;
+	struct xdma_user_irq	user_irq[XDMA_MAX_USER_IRQS];
 	u32			status;
 };
 
@@ -222,6 +241,12 @@ static int xdma_enable_intr(struct xdma_device *xdev)
 		return ret;
 	}
 
+	ret = xdma_write_reg(xdev, XDMA_IRQ_BASE, XDMA_IRQ_USER_INT_EN_W1S, ~0);
+	if (ret) {
+		dev_err(&xdev->pdev->dev, "set user intr mask failed: %d",
+			ret);
+	}
+
 	return ret;
 }
 
@@ -234,6 +259,12 @@ static int xdma_disable_intr(struct xdma_device *xdev)
 		dev_err(&xdev->pdev->dev, "clear channel intr mask failed: %d",
 			ret);
 		return ret;
+	}
+
+	ret = xdma_write_reg(xdev, XDMA_IRQ_BASE, XDMA_IRQ_USER_INT_EN_W1C, ~0);
+	if (ret) {
+		dev_err(&xdev->pdev->dev, "clear user intr mask failed: %d",
+			ret);
 	}
 
 	return ret;
@@ -409,6 +440,16 @@ static void xdma_channel_tasklet(struct tasklet_struct *t)
 	spin_lock(&xdma_chan->vchan.lock);
 	xdma_xfer_start(xdma_chan);
 	spin_unlock(&xdma_chan->vchan.lock);
+}
+
+static void xdma_userirq_tasklet(struct tasklet_struct *t)
+{
+	struct xdma_user_irq *user_irq = from_tasklet(user_irq, t, tasklet);
+
+	spin_lock(&user_irq->irq_lock);
+	if (user_irq->handler)
+		user_irq->handler(user_irq->irq, user_irq->arg);
+	spin_unlock(&user_irq->irq_lock);
 }
 
 /**
@@ -604,6 +645,20 @@ static int xdma_alloc_chan_resources(struct dma_chan *chan)
 }
 
 /**
+ * xdma_user_isr - XDMA user interrupt handler
+ * @irq: IRQ number
+ * @dev_id: Pointer to the user irq structure
+ */
+static irqreturn_t xdma_user_isr(int irq, void *dev_id)
+{
+	struct xdma_user_irq *user_irq = dev_id;
+
+	tasklet_schedule(&user_irq->tasklet);
+
+	return IRQ_HANDLED;
+}
+
+/**
  * xdma_channel_isr - XDMA channel interrupt handler
  * @irq: IRQ number
  * @dev_id: Pointer to the DMA channel structure
@@ -647,6 +702,7 @@ out:
  */
 static void xdma_irq_fini(struct xdma_device *xdev)
 {
+	struct xdma_platdata *pdata = dev_get_platdata(&xdev->pdev->dev);
 	int ret, i;
 
 	/* disable interrupt */
@@ -664,6 +720,10 @@ static void xdma_irq_fini(struct xdma_device *xdev)
 	for (i = 0; i < xdev->c2h_chan_num; i++) {
 		free_irq(xdev->c2h_chans[i].irq, &xdev->c2h_chans[i]);
 		tasklet_kill(&xdev->c2h_chans[i].tasklet);
+	}
+	for (i = 0; i < pdata->user_irqs; i++) {
+		free_irq(xdev->user_irq[i].irq, &xdev->user_irq[i]);
+		tasklet_kill(&xdev->user_irq[i].tasklet);
 	}
 }
 
@@ -708,11 +768,13 @@ static int xdma_set_vector_reg(struct xdma_device *xdev, u32 vec_tbl_start,
  */
 static int xdma_irq_init(struct xdma_device *xdev)
 {
+	struct xdma_platdata *pdata = dev_get_platdata(&xdev->pdev->dev);
 	u32 irq = xdev->irq_start;
 	int i, ret;
 
 	/* return failure if there are not enough IRQs */
-	if (xdev->irq_num < xdev->h2c_chan_num + xdev->c2h_chan_num) {
+	if (xdev->irq_num < xdev->h2c_chan_num + xdev->c2h_chan_num +
+	    pdata->user_irqs) {
 		dev_err(&xdev->pdev->dev, "not enough irq");
 		return -EINVAL;
 	}
@@ -749,11 +811,36 @@ static int xdma_irq_init(struct xdma_device *xdev)
 		irq++;
 	}
 
+	/* setup user interrupt handler */
+	for (i = 0; i < pdata->user_irqs; i++) {
+		ret = request_irq(irq, xdma_user_isr, 0, "xdma-user",
+				  &xdev->user_irq[i]);
+		if (ret) {
+			dev_err(&xdev->pdev->dev,
+				"request user irq%d failed: %d", irq, ret);
+			goto failed;
+		}
+		xdev->user_irq[i].irq = irq;
+		xdev->user_irq[i].xdev_hdl = xdev;
+		spin_lock_init(&xdev->user_irq[i].irq_lock);
+		tasklet_setup(&xdev->user_irq[i].tasklet, xdma_userirq_tasklet);
+		irq++;
+	}
+
 	/* config hardware IRQ registers */
 	ret = xdma_set_vector_reg(xdev, XDMA_IRQ_CHAN_VEC_NUM, 0,
 				  xdev->h2c_chan_num + xdev->c2h_chan_num);
 	if (ret) {
 		dev_err(&xdev->pdev->dev, "failed to set channel vectors: %d",
+			ret);
+		return ret;
+	}
+
+	ret = xdma_set_vector_reg(xdev, XDMA_IRQ_USER_VEC_NUM,
+				  xdev->h2c_chan_num + xdev->c2h_chan_num,
+				  pdata->user_irqs);
+	if (ret) {
+		dev_err(&xdev->pdev->dev, "failed to set user vectors: %d",
 			ret);
 		return ret;
 	}
@@ -773,6 +860,8 @@ failed:
 		free_irq(xdev->h2c_chans[i].irq, &xdev->h2c_chans[i]);
 	for (i = 0; i < xdev->c2h_chan_num && irq > 0; i++, irq--)
 		free_irq(xdev->c2h_chans[i].irq, &xdev->c2h_chans[i]);
+	for (i = 0; i < pdata->user_irqs && irq > 0; i++, irq--)
+		free_irq(xdev->user_irq[i].irq, &xdev->user_irq[i]);
 
 	return ret;
 }
@@ -787,6 +876,36 @@ static bool xdma_filter_fn(struct dma_chan *chan, void *param)
 
 	return true;
 }
+
+/**
+ * xdma_user_isr_register - Register user interrupt handler
+ * @pdev: Pointer to the platform_device structure
+ * @user_irq_index: User IRQ index
+ * @handler: User interrupt handler
+ * @arg: User interrupt handler argument
+ */
+int xdma_user_isr_register(struct platform_device *pdev, u32 user_irq_index,
+			   irq_handler_t handler, void *arg)
+{
+	struct xdma_platdata *pdata = dev_get_platdata(&pdev->dev);
+	struct xdma_device *xdev = platform_get_drvdata(pdev);
+	unsigned long flags;
+
+	if (user_irq_index >= pdata->user_irqs) {
+		dev_err(&pdev->dev, "invalid user irq index");
+		return -EINVAL;
+	}
+
+	spin_lock_irqsave(&xdev->user_irq[user_irq_index].irq_lock, flags);
+
+	xdev->user_irq[user_irq_index].handler = handler;
+	xdev->user_irq[user_irq_index].arg = arg;
+
+	spin_unlock_irqrestore(&xdev->user_irq[user_irq_index].irq_lock, flags);
+
+	return 0;
+}
+EXPORT_SYMBOL(xdma_user_isr_register);
 
 /**
  * xdma_remove - Driver remove function
@@ -820,6 +939,11 @@ static int xdma_probe(struct platform_device *pdev)
 	if (pdata->max_dma_channels > XDMA_MAX_CHANNELS) {
 		dev_err(&pdev->dev, "invalid max dma channels %d",
 			pdata->max_dma_channels);
+		return -EINVAL;
+	}
+	if (pdata->user_irqs > XDMA_MAX_USER_IRQS) {
+		dev_err(&pdev->dev, "invalid max user irqs %d",
+			pdata->user_irqs);
 		return -EINVAL;
 	}
 
