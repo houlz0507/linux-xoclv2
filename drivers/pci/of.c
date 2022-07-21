@@ -469,6 +469,8 @@ static int of_irq_parse_pci(const struct pci_dev *pdev, struct of_phandle_args *
 		} else {
 			/* We found a P2P bridge, check if it has a node */
 			ppnode = pci_device_to_OF_node(ppdev);
+			if (of_node_check_flag(ppnode, OF_DYNAMIC))
+				ppnode = NULL;
 		}
 
 		/*
@@ -598,6 +600,110 @@ int devm_of_pci_bridge_init(struct device *dev, struct pci_host_bridge *bridge)
 
 	return pci_parse_request_of_pci_ranges(dev, bridge);
 }
+
+#if IS_ENABLED(CONFIG_PCI_OF)
+struct of_pci_node {
+	struct list_head node;
+	struct device_node *dt_node;
+	struct of_changeset cset;
+};
+
+static LIST_HEAD(of_pci_node_list);
+static DEFINE_MUTEX(of_pci_node_lock);
+
+static void of_pci_free_node(struct of_pci_node *node)
+{
+	of_changeset_destroy(&node->cset);
+	kfree(node->dt_node->full_name);
+	if (node->dt_node)
+		of_node_put(node->dt_node);
+	kfree(node);
+}
+
+void of_pci_remove_node(struct pci_dev *pdev)
+{
+	struct list_head *ele, *next;
+	struct of_pci_node *node;
+
+	mutex_lock(&of_pci_node_lock);
+
+	list_for_each_safe(ele, next, &of_pci_node_list) {
+		node = list_entry(ele, struct of_pci_node, node);
+		if (node->dt_node == pdev->dev.of_node) {
+			list_del(&node->node);
+			mutex_unlock(&of_pci_node_lock);
+			of_pci_free_node(node);
+			break;
+		}
+	}
+	mutex_unlock(&of_pci_node_lock);
+}
+
+void of_pci_make_dev_node(struct pci_dev *pdev)
+{
+	const char *pci_type = "dev";
+	struct device_node *parent;
+	struct of_pci_node *node;
+	int ret;
+
+	/*
+	 * if there is already a device tree node linked to this device,
+	 * return immediately.
+	 */
+	if (pci_device_to_OF_node(pdev))
+		return;
+
+	/* check if there is device tree node for parent device */
+	if (!pdev->bus->self)
+		parent = pdev->bus->dev.of_node;
+	else
+		parent = pdev->bus->self->dev.of_node;
+	if (!parent)
+		return;
+
+	node = kzalloc(sizeof(*node), GFP_KERNEL);
+	if (!node)
+		return;
+	of_changeset_init(&node->cset);
+
+	node->dt_node = of_node_alloc(NULL);
+	if (!node->dt_node) {
+		ret = -ENOMEM;
+		goto failed;
+	}
+	node->dt_node->parent = parent;
+
+	if (pci_is_bridge(pdev))
+		pci_type = "pci";
+
+	node->dt_node->full_name = kasprintf(GFP_KERNEL, "%s@%x,%x", pci_type,
+					     PCI_SLOT(pdev->devfn),
+					     PCI_FUNC(pdev->devfn));
+	if (!node->dt_node->full_name) {
+		ret = -ENOMEM;
+		goto failed;
+	}
+
+	ret = of_changeset_attach_node(&node->cset, node->dt_node);
+	if (ret)
+		goto failed;
+
+	ret = of_changeset_apply(&node->cset);
+	if (ret)
+		goto failed;
+
+	pdev->dev.of_node = node->dt_node;
+
+	mutex_lock(&of_pci_node_lock);
+	list_add(&node->node, &of_pci_node_list);
+	mutex_unlock(&of_pci_node_lock);
+
+	return;
+
+failed:
+	of_pci_free_node(node);
+}
+#endif
 
 #endif /* CONFIG_PCI */
 
