@@ -469,6 +469,8 @@ static int of_irq_parse_pci(const struct pci_dev *pdev, struct of_phandle_args *
 		} else {
 			/* We found a P2P bridge, check if it has a node */
 			ppnode = pci_device_to_OF_node(ppdev);
+			if (of_get_property(ppnode, "pci-autogen", NULL))
+				ppnode = NULL;
 		}
 
 		/*
@@ -598,6 +600,178 @@ int devm_of_pci_bridge_init(struct device *dev, struct pci_host_bridge *bridge)
 
 	return pci_parse_request_of_pci_ranges(dev, bridge);
 }
+
+#if IS_ENABLED(CONFIG_PCI_OF)
+struct of_pci_node {
+	struct list_head node;
+	struct device_node *dt_node;
+	struct of_changeset cset;
+};
+
+static LIST_HEAD(of_pci_node_list);
+static DEFINE_MUTEX(of_pci_node_lock);
+
+/*
+ * of_pci_mip_dev_tbl defines PCI devices which have multiple downstream
+ * devices.
+ *
+ * To overlay flattened device tree, the PCI device and all its ancestor devices
+ * need to have device tree nodes on system base device tree. Thus, during
+ * adding PCI device, it needs to check if the device itself or one of device
+ * under it matches device in of_pci_mip_dev_tbl. If there is a match, create
+ * a device tree node.
+ */
+static struct pci_device_id of_pci_mip_dev_tbl[] = {
+	{
+		.vendor = 0x10ee,
+		.device = 0x5020,
+		.subvendor = PCI_ANY_ID,
+		.subdevice = PCI_ANY_ID,
+	},
+	{
+		.vendor = 0x10ee,
+		.device = 0x5021,
+		.subvendor = PCI_ANY_ID,
+		.subdevice = PCI_ANY_ID,
+	},
+};
+
+static int of_pci_add_property(struct of_pci_node *node, const char *name,
+			       const void *value, u32 length)
+{
+	struct property *prop;
+	int ret;
+
+	prop = of_property_alloc(name, value, length);
+	if (!prop)
+		return -ENOMEM;
+
+	ret = of_changeset_add_property(&node->cset, node->dt_node, prop);
+	if (ret)
+		of_property_free(prop);
+
+	return ret;
+}
+
+static void of_pci_free_node(struct of_pci_node *node)
+{
+	of_changeset_destroy(&node->cset);
+	kfree(node->dt_node->full_name);
+	if (node->dt_node)
+		of_node_put(node->dt_node);
+	kfree(node);
+}
+
+void of_pci_remove_node(struct pci_dev *pdev)
+{
+	struct list_head *ele, *next;
+	struct of_pci_node *node;
+
+	mutex_lock(&of_pci_node_lock);
+
+	list_for_each_safe(ele, next, &of_pci_node_list) {
+		node = list_entry(ele, struct of_pci_node, node);
+		if (node->dt_node == pdev->dev.of_node) {
+			list_del(&node->node);
+			mutex_unlock(&of_pci_node_lock);
+			of_pci_free_node(node);
+			break;
+		}
+	}
+	mutex_unlock(&of_pci_node_lock);
+}
+
+static bool of_pci_check_mip(struct pci_dev *pdev)
+{
+	struct pci_bus *bus = pdev->subordinate;
+	struct pci_dev *child, *tmp;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(of_pci_mip_dev_tbl); i++) {
+		if (pci_match_one_device(&of_pci_mip_dev_tbl[i], pdev))
+			return true;
+	}
+
+	if (bus) {
+		list_for_each_entry_safe(child, tmp,
+					 &bus->devices, bus_list) {
+			if (of_pci_check_mip(child))
+				return true;
+		}
+	}
+
+	return false;
+}
+
+int of_pci_make_dev_node(struct pci_dev *pdev)
+{
+	const char *pci_type = "dev";
+	struct device_node *parent;
+	struct of_pci_node *node;
+	int ret;
+
+	if (pci_device_to_OF_node(pdev)) {
+		return -EEXIST;
+	}
+
+	if (!pdev->bus->self)
+		parent = pdev->bus->dev.of_node;
+	else
+		parent = pdev->bus->self->dev.of_node;
+	if (!parent)
+		return -EINVAL;
+
+	if (!of_pci_check_mip(pdev))
+		return -EINVAL;
+
+	node = kzalloc(sizeof(*node), GFP_KERNEL);
+	if (!node)
+		return -ENOMEM;
+	of_changeset_init(&node->cset);
+
+	node->dt_node = of_node_alloc(NULL);
+	if (!node->dt_node) {
+		ret= -ENOMEM;
+		goto failed;
+	}
+	node->dt_node->parent = parent;
+
+	if (pci_is_bridge(pdev))
+		pci_type = "pci";
+
+	node->dt_node->full_name = kasprintf(GFP_KERNEL, "%s@%x,%x", pci_type,
+					     PCI_SLOT(pdev->devfn),
+					     PCI_FUNC(pdev->devfn));
+	if (!node->dt_node->full_name) {
+		ret = -ENOMEM;
+		goto failed;
+	}
+
+	ret = of_pci_add_property(node, "pci-autogen", NULL, 0);
+	if (ret)
+		goto failed;
+
+	ret = of_changeset_attach_node(&node->cset, node->dt_node);
+	if (ret)
+		goto failed;
+
+	ret = of_changeset_apply(&node->cset);
+	if (ret)
+		goto failed;
+
+	pdev->dev.of_node = node->dt_node;
+
+	mutex_lock(&of_pci_node_lock);
+	list_add(&node->node, &of_pci_node_list);
+	mutex_unlock(&of_pci_node_lock);
+
+	return 0;
+
+failed:
+	of_pci_free_node(node);
+	return ret;
+}
+#endif
 
 #endif /* CONFIG_PCI */
 
