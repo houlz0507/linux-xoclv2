@@ -601,49 +601,31 @@ int devm_of_pci_bridge_init(struct device *dev, struct pci_host_bridge *bridge)
 	return pci_parse_request_of_pci_ranges(dev, bridge);
 }
 
-#if IS_ENABLED(CONFIG_PCI_OF)
-struct of_pci_node {
-	struct list_head node;
-	struct device_node *dt_node;
-	struct of_changeset cset;
-};
-
-static LIST_HEAD(of_pci_node_list);
-static DEFINE_MUTEX(of_pci_node_lock);
-
-static void of_pci_free_node(struct of_pci_node *node)
-{
-	of_changeset_destroy(&node->cset);
-	kfree(node->dt_node->full_name);
-	if (node->dt_node)
-		of_node_put(node->dt_node);
-	kfree(node);
-}
+#if IS_ENABLED(CONFIG_PCI_DYNAMIC_OF_NODES)
 
 void of_pci_remove_node(struct pci_dev *pdev)
 {
-	struct list_head *ele, *next;
-	struct of_pci_node *node;
+	struct device_node *dt_node;
+	struct of_changeset *cset;
 
-	mutex_lock(&of_pci_node_lock);
+	dt_node = pci_device_to_OF_node(pdev);
+	if (!dt_node || !of_node_check_flag(dt_node, OF_DYNAMIC))
+		return;
 
-	list_for_each_safe(ele, next, &of_pci_node_list) {
-		node = list_entry(ele, struct of_pci_node, node);
-		if (node->dt_node == pdev->dev.of_node) {
-			list_del(&node->node);
-			mutex_unlock(&of_pci_node_lock);
-			of_pci_free_node(node);
-			break;
-		}
-	}
-	mutex_unlock(&of_pci_node_lock);
+	cset = (struct of_changeset *)dt_node->data;
+	of_changeset_destroy(cset);
+	of_node_put(dt_node);
+	pdev->dev.of_node = NULL;
+	kfree(cset);
 }
 
 void of_pci_make_dev_node(struct pci_dev *pdev)
 {
 	const char *pci_type = "dev";
+	struct of_pci_node *dt_node;
 	struct device_node *parent;
-	struct of_pci_node *node;
+	struct of_changeset *cset;
+	char *full_name;
 	int ret;
 
 	/*
@@ -661,47 +643,38 @@ void of_pci_make_dev_node(struct pci_dev *pdev)
 	if (!parent)
 		return;
 
-	node = kzalloc(sizeof(*node), GFP_KERNEL);
-	if (!node)
+	cset = kzalloc(sizeof(*cset), GFP_KERNEL);
+	if (!cset)
 		return;
-	of_changeset_init(&node->cset);
 
-	node->dt_node = of_node_alloc(NULL);
-	if (!node->dt_node) {
-		ret = -ENOMEM;
-		goto failed;
-	}
-	node->dt_node->parent = parent;
+	of_changeset_init(cset);
 
 	if (pci_is_bridge(pdev))
 		pci_type = "pci";
 
-	node->dt_node->full_name = kasprintf(GFP_KERNEL, "%s@%x,%x", pci_type,
-					     PCI_SLOT(pdev->devfn),
-					     PCI_FUNC(pdev->devfn));
-	if (!node->dt_node->full_name) {
-		ret = -ENOMEM;
+	full_name = kasprintf(GFP_KERNEL, "%s@%x,%x", pci_type,
+			      PCI_SLOT(pdev->devfn),
+			      PCI_FUNC(pdev->devfn));
+	if (!full_name)
 		goto failed;
-	}
 
-	ret = of_changeset_attach_node(&node->cset, node->dt_node);
+	
+	ret = of_changeset_create_node(cset, parent, full_name, &dt_node);
 	if (ret)
 		goto failed;
 
-	ret = of_changeset_apply(&node->cset);
+	ret = of_changeset_apply(cset);
 	if (ret)
 		goto failed;
 
-	pdev->dev.of_node = node->dt_node;
-
-	mutex_lock(&of_pci_node_lock);
-	list_add(&node->node, &of_pci_node_list);
-	mutex_unlock(&of_pci_node_lock);
+	pdev->dev.of_node = dt_node;
 
 	return;
 
 failed:
-	of_pci_free_node(node);
+	kfree(full_name);
+	of_changeset_destroy(cset);
+	kfree(cset);
 }
 #endif
 
