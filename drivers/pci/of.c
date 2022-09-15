@@ -667,6 +667,9 @@ void of_pci_make_dev_node(struct pci_dev *pdev)
 	if (ret)
 		goto failed;
 
+	dt_node->data = cset;
+	kfree(full_name);
+
 	pdev->dev.of_node = dt_node;
 
 	return;
