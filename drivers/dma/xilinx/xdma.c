@@ -25,6 +25,7 @@
 #include <linux/dmapool.h>
 #include <linux/regmap.h>
 #include <linux/dmaengine.h>
+#include <linux/dma/amd_xdma.h>
 #include <linux/platform_device.h>
 #include <linux/platform_data/amd_xdma.h>
 #include <linux/dma-mapping.h>
@@ -736,6 +737,7 @@ static int xdma_set_vector_reg(struct xdma_device *xdev, u32 vec_tbl_start,
 static int xdma_irq_init(struct xdma_device *xdev)
 {
 	u32 irq = xdev->irq_start;
+	u32 user_irq_start;
 	int i, j, ret;
 
 	/* return failure if there are not enough IRQs */
@@ -786,6 +788,18 @@ static int xdma_irq_init(struct xdma_device *xdev)
 		goto failed;
 	}
 
+	/* config user IRQ registers if needed */
+	user_irq_start = xdev->h2c_chan_num + xdev->c2h_chan_num;
+	if (xdev->irq_num > user_irq_start) {
+		ret = xdma_set_vector_reg(xdev, XDMA_IRQ_USER_VEC_NUM,
+					  user_irq_start,
+					  xdev->irq_num - user_irq_start);
+		if (ret) {
+			xdma_err(xdev, "failed to set user vectors: %d", ret);
+			goto failed;
+		}
+	}
+
 	/* enable interrupt */
 	ret = xdma_enable_intr(xdev);
 	if (ret) {
@@ -815,6 +829,57 @@ static bool xdma_filter_fn(struct dma_chan *chan, void *param)
 
 	return true;
 }
+
+/**
+ * xdma_disable_user_irq - Disable user interrupt
+ * @pdev: Pointer to the platform_device structure
+ * @user_irq_index: User IRQ index
+ */
+void xdma_disable_user_irq(struct platform_device *pdev, u32 user_irq_index)
+{
+	struct xdma_device *xdev = platform_get_drvdata(pdev);
+
+	if (xdev->h2c_chan_num + xdev->c2h_chan_num + user_irq_index >=
+	    xdev->irq_num) {
+		xdma_err(xdev, "invalid user irq index");
+		return;
+	}
+
+	xdma_write_reg(xdev, XDMA_IRQ_BASE, XDMA_IRQ_USER_INT_EN_W1C,
+		       (1 << user_irq_index));
+}
+EXPORT_SYMBOL(xdma_disable_user_irq);
+
+/**
+ * xdma_enable_user_irq - Enable user logic interrupt
+ * @pdev: Pointer to the platform_device structure
+ * @user_irq_index: User logic IRQ wire index
+ * @irq: Pointer to returning system IRQ number
+ */
+int xdma_enable_user_irq(struct platform_device *pdev, u32 user_irq_index,
+			 u32 *irq)
+{
+	struct xdma_device *xdev = platform_get_drvdata(pdev);
+	u32 user_irq;
+	int ret;
+
+	user_irq = xdev->h2c_chan_num + xdev->c2h_chan_num + user_irq_index;
+	if (user_irq >= xdev->irq_num) {
+		xdma_err(xdev, "invalid user irq index");
+		return -EINVAL;
+	}
+
+	ret = xdma_write_reg(xdev, XDMA_IRQ_BASE, XDMA_IRQ_USER_INT_EN_W1S,
+			     (1 << user_irq_index));
+	if (ret) {
+		xdma_err(xdev, "set user irq mask failed, %d", ret);
+		return ret;
+	}
+	*irq = user_irq + xdev->irq_start;
+
+	return 0;
+}
+EXPORT_SYMBOL(xdma_enable_user_irq);
 
 /**
  * xdma_remove - Driver remove function
