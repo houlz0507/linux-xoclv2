@@ -934,3 +934,26 @@ int of_changeset_action(struct of_changeset *ocs, unsigned long action,
 	return 0;
 }
 EXPORT_SYMBOL_GPL(of_changeset_action);
+
+int of_changeset_create_node(struct of_changeset *ocs,
+			     struct device_node *parent, const char *full_name,
+			     struct device_node **node)
+{
+	struct device_node *np;
+	int ret;
+
+	np = __of_node_dup(NULL, full_name);
+	if (!np)
+		return -ENOMEM;
+
+	np->parent = parent;
+	ret = of_changeset_attach_node(ocs, np);
+	if (ret) {
+		of_node_put(np);
+		return ret;
+	}
+
+	*node = np;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(of_changeset_create_node);

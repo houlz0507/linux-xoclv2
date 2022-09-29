@@ -621,9 +621,8 @@ void of_pci_remove_node(struct pci_dev *pdev)
 
 void of_pci_make_dev_node(struct pci_dev *pdev)
 {
+	struct device_node *parent, *dt_node;
 	const char *pci_type = "dev";
-	struct of_pci_node *dt_node;
-	struct device_node *parent;
 	struct of_changeset *cset;
 	char *full_name;
 	int ret;

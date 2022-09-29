@@ -1475,6 +1475,10 @@ extern int of_changeset_revert(struct of_changeset *ocs);
 extern int of_changeset_action(struct of_changeset *ocs,
 		unsigned long action, struct device_node *np,
 		struct property *prop);
+extern int of_changeset_create_node(struct of_changeset *ocs,
+				    struct device_node *parent,
+				    const char *full_name,
+				    struct device_node **node);
 
 static inline int of_changeset_attach_node(struct of_changeset *ocs,
 		struct device_node *np)

@@ -200,6 +200,7 @@ config PCI_HYPERV
 
 config PCI_DYNAMIC_OF_NODES
 	bool "Device tree node for PCI devices"
+	depends on OF
 	select OF_DYNAMIC
 	help
 	  This option enables support for generating device tree nodes for some

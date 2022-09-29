@@ -689,7 +689,7 @@ of_pci_make_dev_node(struct pci_dev *pdev)
 }
 
 static inline void
-of_pci_remove_node(struct pci_dev *pdev);
+of_pci_remove_node(struct pci_dev *pdev)
 {
 }
 #endif /* CONFIG_OF_DYNAMIC */
