@@ -469,6 +469,8 @@ static int of_irq_parse_pci(const struct pci_dev *pdev, struct of_phandle_args *
 		} else {
 			/* We found a P2P bridge, check if it has a node */
 			ppnode = pci_device_to_OF_node(ppdev);
+			if (of_node_check_flag(ppnode, OF_DYNAMIC))
+				ppnode = NULL;
 		}
 
 		/*
@@ -598,6 +600,65 @@ int devm_of_pci_bridge_init(struct device *dev, struct pci_host_bridge *bridge)
 
 	return pci_parse_request_of_pci_ranges(dev, bridge);
 }
+
+#if IS_ENABLED(CONFIG_PCI_DYNAMIC_OF_NODES)
+
+void of_pci_remove_node(struct pci_dev *pdev)
+{
+	struct device_node *dt_node;
+
+	dt_node = pci_device_to_OF_node(pdev);
+	if (!dt_node || !of_node_check_flag(dt_node, OF_DYNAMIC))
+		return;
+	pdev->dev.of_node = NULL;
+
+	of_destroy_node(dt_node);
+}
+
+void of_pci_make_dev_node(struct pci_dev *pdev)
+{
+	struct device_node *parent, *dt_node;
+	const char *pci_type = "dev";
+	char *full_name;
+
+	/*
+	 * if there is already a device tree node linked to this device,
+	 * return immediately.
+	 */
+	if (pci_device_to_OF_node(pdev))
+		return;
+
+	/* check if there is device tree node for parent device */
+	if (!pdev->bus->self)
+		parent = pdev->bus->dev.of_node;
+	else
+		parent = pdev->bus->self->dev.of_node;
+	if (!parent)
+		return;
+
+	if (pci_is_bridge(pdev))
+		pci_type = "pci";
+
+	full_name = kasprintf(GFP_KERNEL, "%s@%x,%x", pci_type,
+			      PCI_SLOT(pdev->devfn),
+			      PCI_FUNC(pdev->devfn));
+	if (!full_name)
+		goto failed;
+
+	dt_node = of_create_node(parent, full_name, NULL);
+	if (!dt_node)
+		goto failed;
+
+	kfree(full_name);
+
+	pdev->dev.of_node = dt_node;
+
+	return;
+
+failed:
+	kfree(full_name);
+}
+#endif
 
 #endif /* CONFIG_PCI */
 
