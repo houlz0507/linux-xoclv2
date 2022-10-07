@@ -935,25 +935,67 @@ int of_changeset_action(struct of_changeset *ocs, unsigned long action,
 }
 EXPORT_SYMBOL_GPL(of_changeset_action);
 
-int of_changeset_create_node(struct of_changeset *ocs,
-			     struct device_node *parent, const char *full_name,
-			     struct device_node **node)
+void of_destroy_node(struct device_node *np)
 {
+	struct of_changeset *cset;
+
+	cset = (struct of_changeset *)np->data;
+	of_changeset_destroy(cset);
+	of_node_put(np);
+	kfree(cset);
+}
+
+struct device_node *of_create_node(struct device_node *parent,
+				   const char *full_name,
+				   struct property *props)
+{
+	struct of_changeset *cset;
+	struct property *new_pp;
 	struct device_node *np;
-	int ret;
+	int ret, i;
+
+	cset = kzalloc(sizeof(*cset), GFP_KERNEL);
+	if (!cset)
+		return NULL;
+
+	of_changeset_init(cset);
 
 	np = __of_node_dup(NULL, full_name);
 	if (!np)
-		return -ENOMEM;
-
+		goto failed;
 	np->parent = parent;
-	ret = of_changeset_attach_node(ocs, np);
-	if (ret) {
-		of_node_put(np);
-		return ret;
+
+	ret = of_changeset_attach_node(cset, np);
+	if (ret)
+		goto failed;
+
+	if (props) {
+		for (i = 0; props[i].name; i++) {
+			new_pp = __of_prop_dup(&props[i], GFP_KERNEL);
+			if (!new_pp)
+				goto failed;
+			ret = of_changeset_add_property(cset, np, new_pp);
+			if (ret) {
+				kfree(new_pp->name);
+				kfree(new_pp->value);
+				kfree(new_pp);
+				goto failed;
+			}
+		}
 	}
 
-	*node = np;
-	return 0;
+	ret = of_changeset_apply(cset);
+	if (ret)
+		goto failed;
+
+	np->data = cset;
+
+	return np;
+
+failed:
+	of_changeset_destroy(cset);
+	if (np)
+		of_node_put(np);
+
+	return NULL;
 }
-EXPORT_SYMBOL_GPL(of_changeset_create_node);

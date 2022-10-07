@@ -611,19 +611,16 @@ void of_pci_remove_node(struct pci_dev *pdev)
 	dt_node = pci_device_to_OF_node(pdev);
 	if (!dt_node || !of_node_check_flag(dt_node, OF_DYNAMIC))
 		return;
-
-	cset = (struct of_changeset *)dt_node->data;
-	of_changeset_destroy(cset);
-	of_node_put(dt_node);
 	pdev->dev.of_node = NULL;
-	kfree(cset);
+
+	of_destroy_node(dt_node);
 }
 
 void of_pci_make_dev_node(struct pci_dev *pdev)
 {
 	struct device_node *parent, *dt_node;
 	const char *pci_type = "dev";
-	struct of_changeset *cset;
+	struct property *props;
 	char *full_name;
 	int ret;
 
@@ -642,12 +639,6 @@ void of_pci_make_dev_node(struct pci_dev *pdev)
 	if (!parent)
 		return;
 
-	cset = kzalloc(sizeof(*cset), GFP_KERNEL);
-	if (!cset)
-		return;
-
-	of_changeset_init(cset);
-
 	if (pci_is_bridge(pdev))
 		pci_type = "pci";
 
@@ -657,16 +648,15 @@ void of_pci_make_dev_node(struct pci_dev *pdev)
 	if (!full_name)
 		goto failed;
 
-	
-	ret = of_changeset_create_node(cset, parent, full_name, &dt_node);
-	if (ret)
+	props = of_pci_props_create(pdev);
+	if (!props)
 		goto failed;
 
-	ret = of_changeset_apply(cset);
-	if (ret)
+	dt_node = of_create_node(parent, full_name, props);
+	if (!dt_node)
 		goto failed;
 
-	dt_node->data = cset;
+	of_pci_props_destroy(props);
 	kfree(full_name);
 
 	pdev->dev.of_node = dt_node;
@@ -674,9 +664,9 @@ void of_pci_make_dev_node(struct pci_dev *pdev)
 	return;
 
 failed:
+	if (!props)
+		of_pci_props_destroy(props);
 	kfree(full_name);
-	of_changeset_destroy(cset);
-	kfree(cset);
 }
 #endif
 
