@@ -619,6 +619,7 @@ void of_pci_make_dev_node(struct pci_dev *pdev)
 {
 	struct device_node *parent, *dt_node;
 	const char *pci_type = "dev";
+	struct property *props;
 	char *full_name;
 
 	/*
@@ -645,10 +646,15 @@ void of_pci_make_dev_node(struct pci_dev *pdev)
 	if (!full_name)
 		goto failed;
 
-	dt_node = of_create_node(parent, full_name, NULL);
+	props = of_pci_props_create(pdev);
+	if (!props)
+		goto failed;
+
+	dt_node = of_create_node(parent, full_name, props);
 	if (!dt_node)
 		goto failed;
 
+	of_pci_props_destroy(props);
 	kfree(full_name);
 
 	pdev->dev.of_node = dt_node;
@@ -656,6 +662,8 @@ void of_pci_make_dev_node(struct pci_dev *pdev)
 	return;
 
 failed:
+	if (props)
+		of_pci_props_destroy(props);
 	kfree(full_name);
 }
 #endif
