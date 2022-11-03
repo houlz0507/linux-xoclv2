@@ -21,6 +21,8 @@ struct qdma_version {
 };
 
 struct qdma_dev_info {
+	u32	dev_type;
+	u32	func_id;
 	u32	num_qs;
 };
 

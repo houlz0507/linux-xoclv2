@@ -7,6 +7,7 @@
 
 #include <linux/mod_devicetable.h>
 #include <linux/dmapool.h>
+#include <linux/platform_data/amd_mqdma.h>
 #include "../virt-dma.h"
 #include "mqdma.h"
 
@@ -22,12 +23,17 @@ static int qdma_hw_init(struct qdma_device *qdev)
 	u32 val, dev_type;
 	int ret;
 
+	/* read function id */
+	ret = qdma_read_reg(qdev, 0, QDMA_GLBL2_CHANNEL_FUNC_RET, &val);
+	if (ret)
+		return ret;
+	qdev->dev_info.func_id = FIELD_GET(QDMA_GLBL2_FUNC_ID_MASK, val);
+	
 	ret = qdma_read_reg(qdev, 0, QDMA_GLBL2_MISC_CAP, &val);
 	if (ret)
 		return ret;
-
-	dev_type = FIELD_GET(QDMA_GLBL2_DEV_TYPE_MASK, val);
-	switch (dev_type) {
+	qdev->dev_info.dev_type = FIELD_GET(QDMA_GLBL2_DEV_TYPE_MASK, val);
+	switch (qdev->dev_info.dev_type) {
 	case QDMA_DEV_CPM5:
 		qdev->hw_access = &qdma_cpm5_access;
 		break;
@@ -35,6 +41,10 @@ static int qdma_hw_init(struct qdma_device *qdev)
 		qdma_err(qdev, "Unknown device type: %x", dev_type);
 		return -EINVAL;
 	}
+
+	ret = qdev->hw_access->qdma_hw_get_attrs(qdev);
+	if (ret)
+		return ret;
 
 	return 0;
 }
@@ -54,7 +64,7 @@ static int qdma_remove(struct platform_device *pdev)
  */
 static int qdma_probe(struct platform_device *pdev)
 {
-	//struct amdmqdma_platdata *pdata = dev_get_platdata(&pdev->dev);
+	struct amdmqdma_platdata *pdata = dev_get_platdata(&pdev->dev);
 	struct qdma_device *qdev;
 	void __iomem *reg_base;
 	struct resource *res;
