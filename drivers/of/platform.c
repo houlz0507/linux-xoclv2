@@ -171,13 +171,18 @@ static struct platform_device *of_platform_device_create_pdata(
 {
 	struct platform_device *dev;
 
+pr_info("OF CREATE pl %pOF\n", np);
 	if (!of_device_is_available(np) ||
-	    of_node_test_and_set_flag(np, OF_POPULATED))
+	    of_node_test_and_set_flag(np, OF_POPULATED)) {
+		pr_err("OF is not available or failed set flag\n");
 		return NULL;
+	}
 
 	dev = of_device_alloc(np, bus_id, parent);
-	if (!dev)
+	if (!dev) {
+		pr_err("OF failed to alloc device\n");
 		goto err_clear_flag;
+	}
 
 	dev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
 	if (!dev->dev.dma_mask)
@@ -187,6 +192,7 @@ static struct platform_device *of_platform_device_create_pdata(
 	of_msi_configure(&dev->dev, dev->dev.of_node);
 
 	if (of_device_add(dev) != 0) {
+		pr_err("failed to add device \n");
 		platform_device_put(dev);
 		goto err_clear_flag;
 	}
@@ -351,21 +357,22 @@ static int of_platform_bus_create(struct device_node *bus,
 	void *platform_data = NULL;
 	int rc = 0;
 
+pr_info("OF platform bus create %pOF\n", bus);
 	/* Make sure it has a compatible property */
 	if (strict && (!of_get_property(bus, "compatible", NULL))) {
-		pr_debug("%s() - skipping %pOF, no compatible prop\n",
+		pr_err("%s() - skipping %pOF, no compatible prop\n",
 			 __func__, bus);
 		return 0;
 	}
 
 	/* Skip nodes for which we don't want to create devices */
 	if (unlikely(of_match_node(of_skipped_node_table, bus))) {
-		pr_debug("%s() - skipping %pOF node\n", __func__, bus);
+		pr_err("%s() - skipping %pOF node\n", __func__, bus);
 		return 0;
 	}
 
 	if (of_node_check_flag(bus, OF_POPULATED_BUS)) {
-		pr_debug("%s() - skipping %pOF, already populated\n",
+		pr_err("%s() - skipping %pOF, already populated\n",
 			__func__, bus);
 		return 0;
 	}
@@ -390,7 +397,7 @@ static int of_platform_bus_create(struct device_node *bus,
 		return 0;
 
 	for_each_child_of_node(bus, child) {
-		pr_debug("   create child: %pOF\n", child);
+		pr_err("   create child: %pOF\n", child);
 		rc = of_platform_bus_create(child, matches, lookup, &dev->dev, strict);
 		if (rc) {
 			of_node_put(child);

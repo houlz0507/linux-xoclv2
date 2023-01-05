@@ -16,6 +16,7 @@
 #include <linux/delay.h>
 #include <linux/of.h>
 #include <linux/of_pci.h>
+#include <linux/of_platform.h>
 
 #include "dt-test.h"
 
@@ -43,11 +44,7 @@ static int xmgmt_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		return -ENOMEM;
 	pci_set_drvdata(pdev, xm);
 
-	ret = devm_of_pci_create_bus_endpoint(pdev);
-	if (ret)
-		return ret;
-
-	dn = of_pci_find_bus_endpoint(pdev);
+	dn = pdev->dev.of_node;
 	if (!dn) {
 		dev_err(&pdev->dev, "does not find bus endpoint");
 		return -EINVAL;
@@ -59,6 +56,8 @@ static int xmgmt_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	of_node_put(dn);
 	if (ret)
 		return ret;
+
+	of_platform_default_populate(dn, NULL, &pdev->dev);
 
 	return 0;
 }

@@ -5,9 +5,25 @@
 	fragment@0 {
 		target-path="";
 		__overlay__ {
-			pr_isolate_ulp@0,41000 {
-				compatible = "xlnx,alveo-pr-isolation";
-				reg = <0x0 0x41000 0x0 0x1000>;
+			pci-ep-bus@0 {
+				compatible = "simple-bus";
+				#address-cells = <2>;
+				#size-cells = <2>;
+				ranges = <0x0 0x0 0x0 0x0 0x0 0x2000000>;
+				pr_isolate_ulp@41000 {
+					compatible = "xlnx,alveo-pr-isolation";
+					reg = <0x0 0x41000 0x0 0x1000>;
+				};
+			};
+			pci-ep-bus@2 {
+				compatible = "simple-bus";
+				#address-cells = <2>;
+				#size-cells = <2>;
+				ranges = <0x0 0x0 0x20000000 0x0 0x0 0x40000>;
+				alveo-xdma@0 {
+					compatible = "xlnx,alveo-xdma";
+					reg = <0x0 0x0 0x0 0x40000>;
+				};
 			};
 		};
 	};
