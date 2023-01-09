@@ -66,6 +66,7 @@ static void xmgmt_remove(struct pci_dev *pdev)
 {
 	struct xmgmt *xm = pci_get_drvdata(pdev);
 
+	of_platform_depopulate(&pdev->dev);
 	of_overlay_remove(&xm->ovcs_id);
 }
 
