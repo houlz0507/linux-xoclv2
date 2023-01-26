@@ -3,5 +3,5 @@
 # Copyright (C) 2023, Advanced Micro Devices, Inc.
 #
 
-amdmqdma-objs := mqdma-main.o mqdma-cpm5.o mqdma-hw.o
+amdmqdma-objs := mqdma-main.o mqdma-cpm5.o
 obj-$(CONFIG_AMD_MQDMA) += amdmqdma.o
