@@ -153,6 +153,52 @@ static int of_pci_prop_compatible(struct pci_dev *pdev,
 	return ret;
 }
 
+static int of_pci_add_ep_props(struct pci_dev *pdev, struct of_changeset *ocs,
+			       struct device_node *np)
+{
+	struct of_pci_range *rp;
+	resource_size_t sz;
+	int i, j = 0, ret;
+	u32 flags;
+	u64 val64;
+
+	rp = kzalloc(sizeof(*rp) * PCI_STD_NUM_BARS, GFP_KERNEL);
+	if (!rp)
+		return -ENOMEM;
+
+	for (i = PCI_STD_RESOURCES; i <= PCI_STD_RESOURCE_END; i++) {
+		sz = pci_resource_len(pdev, i);
+		if (!sz)
+			continue;
+
+		ret = of_pci_get_addr_flags(&pdev->resource[i], &flags);
+		if (ret)
+			continue;
+
+		val64 = pdev->resource[i].start;
+		of_pci_set_address(pdev, rp[j].parent_addr, val64, 0, flags,
+				   false);
+		rp[j].child_addr[0] = i;
+
+		val64 = resource_size(&pdev->resource[i]);
+		rp[j].size[0] = upper_32_bits(val64);
+		rp[j].size[1] = lower_32_bits(val64);
+
+		j++;
+	}
+
+	ret = of_changeset_add_prop_u32_array(ocs, np, "ranges", (u32 *)rp,
+					      j * sizeof(*rp) / sizeof(u32));
+	kfree(rp);
+	if (ret)
+		return ret;
+
+	of_changeset_add_prop_u32(ocs, np, "#address-cells", 3);
+	of_changeset_add_prop_u32(ocs, np, "#size-cells", 2);
+
+	return ret;
+}
+
 int of_pci_add_properties(struct pci_dev *pdev, struct of_changeset *ocs,
 			  struct device_node *np)
 {
@@ -166,6 +212,8 @@ int of_pci_add_properties(struct pci_dev *pdev, struct of_changeset *ocs,
 		ret |= of_changeset_add_prop_u32(ocs, np, "#size-cells",
 						 OF_PCI_SIZE_CELLS);
 		ret |= of_pci_prop_ranges(pdev, ocs, np);
+	} else {
+		ret |= of_pci_add_ep_props(pdev, ocs, np);
 	}
 
 	ret |= of_pci_prop_reg(pdev, ocs, np);
